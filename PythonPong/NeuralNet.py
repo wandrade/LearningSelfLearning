@@ -23,6 +23,7 @@ class NeuralNet(object):
                 np.random.randn(
                     topology[i], topology[i+1]
                 ))
+        self.image = False
     
     def forward_propagation(self, x):
         stage = x
@@ -44,7 +45,7 @@ class NeuralNet(object):
         draw.ellipse((upperLeftX, upperLeftY, lowerRightX, lowerRightY), 
                         fill = color)
         
-    def make_image(self, style='dark'):
+    def draw_diagram(self, style='dark'):
         # Debug
         grid=False
         
@@ -140,12 +141,19 @@ class NeuralNet(object):
                 
                         
         del draw
+        self.image=img
         return img
-        
+    
+    def save_image(self, path="NeuralNet.png"):
+        if not self.image:
+            self.image = self.draw_diagram()
+        self.image.save('NeuralNet.png')
+
+
 if __name__ == "__main__":
     # Based on:
     # https://enlight.nyc/projects/neural-network/
-    
+    np.random.seed(5541)
     # X = (hours studying, hours sleeping), y = score on test
     xAll = np.array(([2, 9], [1, 5], [3, 6], [5, 10]), dtype=float) # input data
     y = np.array(([92], [86], [89]), dtype=float) # output
@@ -162,6 +170,5 @@ if __name__ == "__main__":
     # print(y)
     
     NN = NeuralNet([2, 3, 1])
-    o = NN.forward_propagation(X)
-    NN.make_image().save('NeuralNet.png')
+    NN.save_image()
     # print(o)
