@@ -198,7 +198,8 @@ class GameWindow(pyglet.window.Window):
         self.ballSpeedModule = 400 
         self.fps_display = FPSDisplay(self)
         self.fps_display.label.font_size = 10
-        
+        self.endScore = 11
+        self.victory = 0
         # Actors
         player_image = Image.new('RGBA', (8,80), (255,255,255,255))
         
@@ -228,24 +229,46 @@ class GameWindow(pyglet.window.Window):
         self.interfaceObjects.append(GameObject(self,[self.width//2 - 1, 0], midLine,batch=self.interface))
         
     def update(self,dt):
-        if self.keys[key.UP]:
-            self.playerTwo.velocity[1] = self.playersSpeed
-        elif self.keys[key.DOWN]:
-            self.playerTwo.velocity[1] = -self.playersSpeed
-        else:
-            self.playerTwo.velocity[1] = 0
-        
-        self.ball.update(dt, self.playerOne, self.playerTwo)
-        self.playerOne.update(dt, self.ball)
-        self.playerTwo.update(dt)
+        if not self.victory:
+            if self.keys[key.UP]:
+                self.playerTwo.velocity[1] = self.playersSpeed
+            elif self.keys[key.DOWN]:
+                self.playerTwo.velocity[1] = -self.playersSpeed
+            else:
+                self.playerTwo.velocity[1] = 0
+            
+            self.ball.update(dt, self.playerOne, self.playerTwo)
+            self.playerOne.update(dt, self.ball)
+            self.playerTwo.update(dt)
+            
+            # end game condition
+            if self.playerOne.points >= self.endScore:
+                self.victory = 1
+            elif self.playerTwo.points >= self.endScore:
+                self.victory = 2
 
     def on_draw(self):
         self.clear()
-        self.interface.draw()
-        self.actors.draw()
-        self.fps_display.draw()
-        pyglet.text.Label(str(self.playerOne.points), x=self.width/4, y = 450, align='center', font_size=26, bold=True).draw()
-        pyglet.text.Label(str(self.playerTwo.points), x=3*self.width/4, y = 450, align='center', font_size=26, bold=True).draw()
+        if not self.victory:
+            self.interface.draw()
+            self.actors.draw()
+            self.fps_display.draw()
+            p1p = pyglet.text.Label(str(self.playerOne.points), x=self.width/4, y = 450, align='center', font_size=26, bold=True)
+            p1p.anchor_x = p1p.anchor_y = 'center'
+            p1p.draw()
+            p2p = pyglet.text.Label(str(self.playerTwo.points), x=3*self.width/4, y = 450, align='center', font_size=26, bold=True)
+            p2p.anchor_x = p2p.anchor_y = 'center'
+            p2p.draw()
+        else:
+            txt = pyglet.text.Label('Victory P' + str(self.victory) + ': ' + str(self.playerOne.points), 
+                              x = self.width/2, 
+                              y = self.height/2, 
+                              align='center', 
+                              font_size=26, 
+                              bold=True
+                              )
+            txt.anchor_x = txt.anchor_y = 'center'
+            txt.draw()
         
 if __name__ == "__main__":
     window = GameWindow(500, 500, 'SmartPong')
