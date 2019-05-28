@@ -149,6 +149,20 @@ class NeuralNet(object):
             self.image = self.draw_diagram()
         self.image.save('NeuralNet.png')
 
+    def get_weights(self):
+        # Unfold weights to a single vector and return them
+        wVec = []
+        for w in self.W:
+            for node in w:
+                for weight in node:
+                    wVec.append(weight)
+        return wVec
+    
+    def set_weights(self, wVec):
+        for i in range(len(self.W)):
+            for j in range(self.W[i].shape[0]):
+                for k in range(self.W[i][j].shape[0]):
+                    self.W[i][j][k] = wVec.pop(0)
 
 if __name__ == "__main__":
     # Based on:
