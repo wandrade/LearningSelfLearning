@@ -1,4 +1,3 @@
-
 import pyglet
 from PIL import Image, ImageDraw
 from pyglet.window import key, FPSDisplay
@@ -87,7 +86,6 @@ class PlayerAuto(GameObject):
         # It has a dead zone in the middle of + and - deadzone pixels
         deadzone = 5
         distVec = self.distanceVec(ball)[1]
-        print(self.initial_velocity, distVec, self.center[1], ball.center[1])
         if distVec > deadzone:
             self.velocity[1] = abs(float(self.initial_velocity[1]))
         elif distVec < -deadzone:
@@ -192,7 +190,6 @@ class Ball(GameObject):
                 
             
         super().update(dt)
-
 class GameWindow(pyglet.window.Window):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -254,10 +251,3 @@ if __name__ == "__main__":
     window = GameWindow(500, 500, 'SmartPong')
     pyglet.clock.schedule_interval(window.update, window.frame_rate)
     pyglet.app.run()
-    
-    
-    im = Image.new('RGBA', (100,150), 'red')
-    draw = ImageDraw.Draw(im)
-    draw.line((0, 0) + im.size, fill=128)
-    draw.line((0, im.size[1], im.size[0], 0), fill=128)
-    
