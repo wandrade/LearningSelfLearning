@@ -1,3 +1,7 @@
+# This code is not intended as a library (it doesnt even check for most of possible errors)
+# the only purpose of this class is to train how to make a neuralNet from scratch
+# if you need a ready to use lib... there are tons out there
+
 import numpy as np
 from matplotlib import pyplot as plt
 from PIL import Image, ImageDraw, ImageFont
@@ -45,30 +49,30 @@ class NeuralNet(object):
         draw.ellipse((upperLeftX, upperLeftY, lowerRightX, lowerRightY), 
                         fill = color)
         
-    def draw_diagram(self, style='dark'):
+    def draw_diagram(self, style='dark', inputLabels=None, outputLabels=None):
         # Debug
         grid=False
+        scale = 1/5 # change everything proportionaly for better or worse quality images
         
         # get max and min values for W
         maxW = max([wn.max() for wn in self.W])
         minW = min([wn.min() for wn in self.W])
         abMW = max([abs(minW), maxW])
         # Space for each neuron
-        blockSizeX = 1500
-        blockSizeY = 1000
-        rightPadding = blockSizeX - blockSizeY
+        blockSizeX = scale*1500
+        blockSizeY = scale*1000
         
         # Neuron radius
-        nSize = 200
-        borderSize = 20 # dont change radius
-        lineClearance = 80
+        nSize = scale*200
+        borderSize = scale*20 # dont change radius
+        lineClearance = scale*80
         horClearance = (blockSizeX-nSize*2)/2
         
         # Set image size based on neural network
-        width = len(self.topology)*blockSizeX 
-        height = max([n for n in self.topology])*blockSizeY
+        width = int(len(self.topology)*blockSizeX)
+        height = int(max([n for n in self.topology])*blockSizeY)
         layers = len(self.topology)
-        maxLineWidth = 60
+        maxLineWidth = scale*60
         
         # select color scheme
         if style == 'dark':
@@ -80,14 +84,19 @@ class NeuralNet(object):
             cText       = (200, 200, 200, 255)
         
         # Create image
-        img = Image.new('RGBA', (width, height), cBackground)
+        if outputLabels is not None:    rightPadding = int(scale*400)
+        else:                           rightPadding = 0
+        img = Image.new('RGBA', (width+rightPadding, height), cBackground)
         draw = ImageDraw.Draw(img)
         
         # Writings
-        fontsize = 220
+        fontsize = int(scale*200)
         font = ImageFont.truetype('Pillow/Tests/fonts/DejaVuSans.ttf', fontsize)
         wText = str('W: (%.2f, %.2f)' % (minW, maxW))
-        draw.text((10, 10), wText, fill=cText, font=font,)
+        draw.text((0, 0), wText, fill=cText, font=font,)
+        labelTextSize = int(scale*150)
+        font = ImageFont.truetype('Pillow/Tests/fonts/DejaVuSans.ttf', labelTextSize)
+        
      ##################################### Code #####################################
         # Draw hidden layers
         for i in range(len(self.topology)):
@@ -98,11 +107,24 @@ class NeuralNet(object):
                 infill = cOutput
             else:
                 infill = cHidden
+            
             if(grid): draw.line((xStep * i,0,xStep * i,height), width=1)
+            
+            # Draw labels
+            if inputLabels is not None and i == 0:
+                for j in range(len(inputLabels)):
+                    yStep = height/(self.topology[i])
+                    draw.text((0, yStep * j + height/((self.topology[i])*2) - labelTextSize/2
+                               ), inputLabels[j], fill=cText, font=font)
+            if outputLabels is not None and i == len(self.topology) - 1:
+                for j in range(len(outputLabels)):
+                    yStep = height/(self.topology[i])
+                    draw.text((width - (blockSizeX - blockSizeY) + lineClearance, yStep * j + height/((self.topology[i])*2) - labelTextSize/2
+                               ), outputLabels[j], fill=cText, font=font)
+                    
             for j in range(self.topology[i]):
                 verClearance = (height/self.topology[i] - 2*nSize)/2
                 yStep = height/(self.topology[i])
-                
                 # Draw lines for weights
                 if i < len(self.topology) - 1:
                     start = [xStep * i + (nSize + horClearance),
@@ -184,5 +206,6 @@ if __name__ == "__main__":
     # print(y)
     
     NN = NeuralNet([2, 3, 1])
+    NN.draw_diagram(inputLabels=['Study', 'Sleep'], outputLabels=['Score'])
     NN.save_image()
     # print(o)
