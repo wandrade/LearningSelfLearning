@@ -39,7 +39,7 @@ class GameObject:
         self.sprite.y = self.position[1]
         self.center = [self.position[0] + self.boundingBox[0]/2, self.position[1] + self.boundingBox[1]/2]
     
-    def hit_border(self, padding = [0, 0, 0, 100]):
+    def hit_border(self, padding = [0, 0, 0, 0]):
         # padding: offset from xUpper, Xlower, yUpper yLower border of window
         eval = [0,0]
         # Check X
@@ -94,7 +94,7 @@ class PlayerAuto(GameObject):
         else:
             self.velocity[1] = 0
         
-        borderHit = self.hit_border()
+        borderHit = self.hit_border([0, window.width - window.playArea[0], 0, window.height - window.playArea[1]])
         # if hit horizontal walls
         # and trying to move past it
         # Set velociti to zero and move to wall limit (this move is to avoid ugly looks due to variations on dt)
@@ -124,7 +124,7 @@ class PlayerManual(GameObject):
             self.velocity[1] = -self.maxSpeed
         else:
             self.velocity[1] = 0
-        borderHit = self.hit_border()
+        borderHit = self.hit_border([0, window.width - window.playArea[0], 0, window.height - window.playArea[1]])
         # Hit horizontal walls
         if borderHit[1] == 1:
             self.velocity[1] = -abs(self.velocity[1])
@@ -145,10 +145,10 @@ class PlayerNN(GameObject):
     def update(self, dt, ball):
         # Build normalized state vector
         state = [[
-            self.center[0]/self.window.playeArea[0],
-            self.center[1]/self.window.playeArea[1],
-            ball.center[0]/self.window.playeArea[0],
-            ball.center[1]/self.window.playeArea[1],
+            self.center[0]/self.window.playArea[0],
+            self.center[1]/self.window.playArea[1],
+            ball.center[0]/self.window.playArea[0],
+            ball.center[1]/self.window.playArea[1],
             ball.velocity[0]/self.window.ballSpeedModule,
             ball.velocity[1]/self.window.ballSpeedModule
         ]]
@@ -162,7 +162,7 @@ class PlayerNN(GameObject):
             self.velocity[1] = -self.maxSpeed
         else:
             self.velocity[1] = 0
-        borderHit = self.hit_border()
+        borderHit = self.hit_border([0, window.width - window.playArea[0], 0, window.height - window.playArea[1]])
         # Hit horizontal walls
         if borderHit[1] == 1:
             self.velocity[1] = -abs(self.velocity[1])
@@ -187,7 +187,7 @@ class Ball(GameObject):
         self.velocity = [mod*math.cos(ang*math.pi/180), mod*math.sin(ang*math.pi/180)]
     
     def update(self, dt, p1, p2):
-        borderHit = self.hit_border()
+        borderHit = self.hit_border([0, window.width - window.playArea[0], 0, window.height - window.playArea[1]])
         if self.rolling:
             # Hit horizontal walls
             # Bounce with same angle
@@ -239,7 +239,7 @@ class Ball(GameObject):
         super().update(dt)
 
 class GameWindow(pyglet.window.Window):
-    def __init__(self, x, y, title, nn):
+    def __init__(self, x, y, title, nn=None):
         super().__init__(x, y, title)
         self.frame_rate = 1/60
         self.playersSpeed = 180
@@ -249,7 +249,8 @@ class GameWindow(pyglet.window.Window):
         self.endScore = 11
         self.victory = 0
         self.neuralNet = nn
-        self.playeArea = [self.width, self.height-100]
+        self.playArea = [self.width, self.height-100]
+        
         # Actors
         player_image = Image.new('RGBA', (8,80), (255,255,255,255))
         
@@ -263,7 +264,7 @@ class GameWindow(pyglet.window.Window):
         self.actors = pyglet.graphics.Batch()
         
         self.playerOne = PlayerAuto(self, [15, self.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
-        # self.playerTwo = PlayerManual(self, [self.width-8-15, self.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
+        #self.playerTwo = PlayerManual(self, [self.width-8-15, self.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
         self.playerTwo = PlayerNN(self, [self.width-8-15, self.height//2], self.neuralNet ,player_image, [0, self.playersSpeed], batch=self.actors)
         self.ball = Ball(self, (200,200), ball_image, self.ballSpeedModule, batch=self.actors)
         
@@ -278,6 +279,24 @@ class GameWindow(pyglet.window.Window):
         midLine = Image.new('RGBA', (2, 400), (255,255,255,60))
         self.interfaceObjects.append(GameObject(self,[0,400],upperBar,batch=self.interface))
         self.interfaceObjects.append(GameObject(self,[self.width//2 - 1, 0], midLine,batch=self.interface))
+        
+        # If neuralnetwork, acomodate for drawing on window
+        if nn is not None:
+            # generate image
+            netDiagram = nn.draw_diagram(inputLabels = ['pos_X', 'pos_Y', 'ball_X', 'ball_Y', 'ball_X\'', 'ball_Y\''], outputLabels=['Motion'])
+            width = netDiagram.width
+            height  = netDiagram.height
+            aspectRatio = width/height
+            leftClearance = 20
+            # Scale to fit on rigth side of screen
+            height = self.height
+            width = int(aspectRatio*height)        
+            netDiagram = netDiagram.resize((width, height), Image.ANTIALIAS)
+            # Add to menu
+            self.interfaceObjects.append(GameObject(self,[self.width+leftClearance, 0], netDiagram, batch=self.interface))
+            # Resize window to fit
+            self.set_size(self.width + netDiagram.width + leftClearance, self.height)
+        
         
     def update(self,dt):
         if not self.victory:
@@ -298,14 +317,14 @@ class GameWindow(pyglet.window.Window):
             self.interface.draw()
             self.actors.draw()
             self.fps_display.draw()
-            p1p = pyglet.text.Label(str(self.playerOne.points), x=self.width/4, y = 450, align='center', font_size=26, bold=True)
+            p1p = pyglet.text.Label(str(self.playerOne.points), x=self.playArea[0]/4, y = 450, align='center', font_size=26, bold=True)
             p1p.anchor_x = p1p.anchor_y = 'center'
             p1p.draw()
-            p2p = pyglet.text.Label(str(self.playerTwo.points), x=3*self.width/4, y = 450, align='center', font_size=26, bold=True)
+            p2p = pyglet.text.Label(str(self.playerTwo.points), x=3*self.playArea[0]/4, y = 450, align='center', font_size=26, bold=True)
             p2p.anchor_x = p2p.anchor_y = 'center'
             p2p.draw()
         else:
-            txt = pyglet.text.Label('Victory P' + str(self.victory) + ': ' + str(self.playerOne.points), 
+            txt = pyglet.text.Label('Victory: Player ' + str(self.victory), 
                               x = self.width/2, 
                               y = self.height/2, 
                               align='center', 
@@ -316,9 +335,7 @@ class GameWindow(pyglet.window.Window):
             txt.draw()
         
 if __name__ == "__main__":
-    NN = NeuralNet([6,1])
-    NN.set_weights([0.3396150867404098, 1.0933458329031185, -1.2287379858543719, 0.2114455552803971, 0.40868705398600624, 0.40095583106694455, -0.8178635951827196])
-    NN.save_image()
-    window = GameWindow(500, 500, 'SmartPong', NN)
+    NN = NeuralNet([6, 3, 1], 1)
+    window = GameWindow(500, 500, 'SmartPong', nn=NN)
     pyglet.clock.schedule_interval(window.update, window.frame_rate)
     pyglet.app.run()
