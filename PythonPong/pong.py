@@ -116,11 +116,49 @@ class PlayerManual(GameObject):
     def score(self):
         self.points += 1
     
-    def update(self, dt):
+    def update(self, dt, ball):
         
         if self.window.keys[key.UP]:
             self.velocity[1] = self.maxSpeed
         elif self.window.keys[key.DOWN]:
+            self.velocity[1] = -self.maxSpeed
+        else:
+            self.velocity[1] = 0
+        borderHit = self.hit_border()
+        # Hit horizontal walls
+        if borderHit[1] == 1:
+            self.velocity[1] = -abs(self.velocity[1])
+        elif borderHit[1] == -1:
+            self.velocity[1] = abs(self.velocity[1])
+        super().update(dt)
+
+class PlayerNN(GameObject):
+    def __init__(self, window, position, neuralNet, visual=None, velocity=[0,0], batch=None):
+        super().__init__(window, position, visual=visual, velocity=velocity, batch=batch)
+        self.points = 0
+        self.maxSpeed = velocity[1]
+        self.neuralNet = neuralNet
+        
+    def score(self):
+        self.points += 1
+    
+    def update(self, dt, ball):
+        # Build normalized state vector
+        state = [[
+            self.center[0]/self.window.playeArea[0],
+            self.center[1]/self.window.playeArea[1],
+            ball.center[0]/self.window.playeArea[0],
+            ball.center[1]/self.window.playeArea[1],
+            ball.velocity[0]/self.window.ballSpeedModule,
+            ball.velocity[1]/self.window.ballSpeedModule
+        ]]
+        
+        # Eval neuralnet
+        action = self.neuralNet.forward_propagation(state)
+        
+        if action < 0.45:
+            self.velocity[1] = self.maxSpeed
+        elif action > 0.55:
             self.velocity[1] = -self.maxSpeed
         else:
             self.velocity[1] = 0
@@ -199,9 +237,10 @@ class Ball(GameObject):
                 
             
         super().update(dt)
+
 class GameWindow(pyglet.window.Window):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, x, y, title, nn):
+        super().__init__(x, y, title)
         self.frame_rate = 1/60
         self.playersSpeed = 180
         self.ballSpeedModule = 400 
@@ -209,6 +248,8 @@ class GameWindow(pyglet.window.Window):
         self.fps_display.label.font_size = 10
         self.endScore = 11
         self.victory = 0
+        self.neuralNet = nn
+        self.playeArea = [self.width, self.height-100]
         # Actors
         player_image = Image.new('RGBA', (8,80), (255,255,255,255))
         
@@ -222,7 +263,8 @@ class GameWindow(pyglet.window.Window):
         self.actors = pyglet.graphics.Batch()
         
         self.playerOne = PlayerAuto(self, [15, self.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
-        self.playerTwo = PlayerManual(self, [self.width-8-15, self.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
+        # self.playerTwo = PlayerManual(self, [self.width-8-15, self.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
+        self.playerTwo = PlayerNN(self, [self.width-8-15, self.height//2], self.neuralNet ,player_image, [0, self.playersSpeed], batch=self.actors)
         self.ball = Ball(self, (200,200), ball_image, self.ballSpeedModule, batch=self.actors)
         
         # Key monitor
@@ -242,7 +284,7 @@ class GameWindow(pyglet.window.Window):
             
             self.ball.update(dt, self.playerOne, self.playerTwo)
             self.playerOne.update(dt, self.ball)
-            self.playerTwo.update(dt)
+            self.playerTwo.update(dt, self.ball)
             
             # end game condition
             if self.playerOne.points >= self.endScore:
@@ -274,8 +316,9 @@ class GameWindow(pyglet.window.Window):
             txt.draw()
         
 if __name__ == "__main__":
-    NN = NeuralNet([4,2])
+    NN = NeuralNet([6,1])
+    NN.set_weights([0.3396150867404098, 1.0933458329031185, -1.2287379858543719, 0.2114455552803971, 0.40868705398600624, 0.40095583106694455, -0.8178635951827196])
     NN.save_image()
-    window = GameWindow(500, 500, 'SmartPong')
+    window = GameWindow(500, 500, 'SmartPong', NN)
     pyglet.clock.schedule_interval(window.update, window.frame_rate)
     pyglet.app.run()
