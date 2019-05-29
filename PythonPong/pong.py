@@ -4,6 +4,7 @@ from pyglet.window import key, FPSDisplay
 import math
 import random
 from helperFunctions import map
+from NeuralNet import *
 
 random.seed(1)
 
@@ -110,11 +111,19 @@ class PlayerManual(GameObject):
     def __init__(self, window, position, visual=None, velocity=[0,0], batch=None):
         super().__init__(window, position, visual=visual, velocity=velocity, batch=batch)
         self.points = 0
+        self.maxSpeed = velocity[1]
     
     def score(self):
         self.points += 1
     
     def update(self, dt):
+        
+        if self.window.keys[key.UP]:
+            self.velocity[1] = self.maxSpeed
+        elif self.window.keys[key.DOWN]:
+            self.velocity[1] = -self.maxSpeed
+        else:
+            self.velocity[1] = 0
         borderHit = self.hit_border()
         # Hit horizontal walls
         if borderHit[1] == 1:
@@ -230,12 +239,6 @@ class GameWindow(pyglet.window.Window):
         
     def update(self,dt):
         if not self.victory:
-            if self.keys[key.UP]:
-                self.playerTwo.velocity[1] = self.playersSpeed
-            elif self.keys[key.DOWN]:
-                self.playerTwo.velocity[1] = -self.playersSpeed
-            else:
-                self.playerTwo.velocity[1] = 0
             
             self.ball.update(dt, self.playerOne, self.playerTwo)
             self.playerOne.update(dt, self.ball)
@@ -271,6 +274,8 @@ class GameWindow(pyglet.window.Window):
             txt.draw()
         
 if __name__ == "__main__":
+    NN = NeuralNet([4,2])
+    NN.save_image()
     window = GameWindow(500, 500, 'SmartPong')
     pyglet.clock.schedule_interval(window.update, window.frame_rate)
     pyglet.app.run()
