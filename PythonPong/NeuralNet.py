@@ -21,18 +21,24 @@ class NeuralNet(object):
         self.W = []
         self.topology = list(topology)
         # Generate random arrays for each layer interface with the correct amount of values
+        # Also creates biases for each layer (as if there was a input = 1)
         # W1 W2 W3....
         for i in range(len(topology)-1):
             self.W.append(
                 np.random.randn(
-                    topology[i], topology[i+1]
+                    1+topology[i], topology[i+1]
                 ))
         self.image = False
     
     def forward_propagation(self, x):
         stage = x
         for w in self.W:
+            # Add bias column to data
+            B = np.ones((len(stage),1))
+            stage = np.hstack((stage, B))
+            # Get weighted sum for each destination neuron
             weighted = np.dot(stage,w)
+            # Pass each value trough activation function
             stage = self.sigmoid(weighted)
         return stage
     
@@ -64,13 +70,20 @@ class NeuralNet(object):
         
         # Neuron radius
         nSize = scale*200
+        # Bias radius
+        bSize = scale*150
+        # border line of circle
         borderSize = scale*20 # dont change radius
+        # clear area around circle
         lineClearance = scale*80
         horClearance = (blockSizeX-nSize*2)/2
         
         # Set image size based on neural network
         width = int(len(self.topology)*blockSizeX)
+        # heigth if there was no bias
         height = int(max([n for n in self.topology])*blockSizeY)
+        # space to draw bias
+        heightPadding = int(max([n+1 for n in self.topology])*(blockSizeY))
         layers = len(self.topology)
         maxLineWidth = scale*60
         
@@ -80,13 +93,14 @@ class NeuralNet(object):
             cHidden     = (  0,  83,  86, 255)
             cOutput     = (  0,  16,  61, 255)
             cBorder     = (255, 255, 255, 255)
-            cBackground = (0, 0, 0, 0)
+            cBackground = (  0,   0,   0,   0)
             cText       = (200, 200, 200, 255)
+            cBias       = (  0,   0,   0, 255)
         
         # Create image
         if outputLabels is not None:    rightPadding = int(scale*400)
         else:                           rightPadding = 0
-        img = Image.new('RGBA', (width+rightPadding, height), cBackground)
+        img = Image.new('RGBA', (width+rightPadding, heightPadding), cBackground)
         draw = ImageDraw.Draw(img)
         
         # Writings
@@ -98,9 +112,10 @@ class NeuralNet(object):
         font = ImageFont.truetype('Pillow/Tests/fonts/DejaVuSans.ttf', labelTextSize)
         
      ##################################### Code #####################################
-        # Draw hidden layers
+        # For each layer
         for i in range(len(self.topology)):
             xStep = width/layers
+            # Color acording to layer type
             if i == 0:
                 infill = cInput
             elif i == len(self.topology)-1:
@@ -108,27 +123,45 @@ class NeuralNet(object):
             else:
                 infill = cHidden
             
+            # Draw vertical lines for each layer (in debug mode for reference)
             if(grid): draw.line((xStep * i,0,xStep * i,height), width=1)
             
-            # Draw labels
+            # Draw labels if they exist
+            yStep = height/(self.topology[i])
+            yOffset = yStep/2 - labelTextSize/2
             if inputLabels is not None and i == 0:
                 for j in range(len(inputLabels)):
-                    yStep = height/(self.topology[i])
-                    draw.text((0, yStep * j + height/((self.topology[i])*2) - labelTextSize/2
+                    draw.text((0, yStep * j + yOffset
                                ), inputLabels[j], fill=cText, font=font)
             if outputLabels is not None and i == len(self.topology) - 1:
                 for j in range(len(outputLabels)):
-                    yStep = height/(self.topology[i])
-                    draw.text((width - (blockSizeX - blockSizeY) + lineClearance, yStep * j + height/((self.topology[i])*2) - labelTextSize/2
+                    draw.text((width - (blockSizeX - blockSizeY) + lineClearance, 
+                               yStep * j + yOffset
                                ), outputLabels[j], fill=cText, font=font)
-                    
-            for j in range(self.topology[i]):
+            
+            # For each node
+            for j in range(self.topology[i] + 1):
+                # X coordinates of node center
                 verClearance = (height/self.topology[i] - 2*nSize)/2
                 yStep = height/(self.topology[i])
+                centerX = xStep * i + nSize + horClearance
+                centerY = yStep * j + nSize + verClearance
+                radius = nSize
+                if j == self.topology[i]:
+                    drawingBias = True
+                    infill = cBias
+                    radius = bSize
+                    # All bias circles are alinged
+                    centerY = height+(heightPadding-height)/2
+                    if(grid):
+                        draw.line((0, centerY, width, centerY))
+                        draw.line((centerX, height, centerX, heightPadding))
+                else:
+                    drawingBias = False
+                
                 # Draw lines for weights
                 if i < len(self.topology) - 1:
-                    start = [xStep * i + (nSize + horClearance),
-                                yStep * j + nSize + verClearance]
+                    start = [centerX, centerY]
                     nextYStep = height/(self.topology[i+1])
                     nextVerClearance = (height/self.topology[i+1] - 2*nSize)/2
                     
@@ -145,23 +178,18 @@ class NeuralNet(object):
                             lineWidth = int(mapFromTo(w, 0, abMW, 0, maxLineWidth))
                             lineColor = (0, 216, 122, opacity)
                         draw.line(start+end, fill=lineColor, width=lineWidth)
-                # Draw Circles
-                self.draw_circle(draw, 
-                                 xStep * i + nSize + horClearance, 
-                                 yStep * j + nSize + verClearance, 
-                                 nSize + lineClearance, cBackground)
+                # Excludes last circle (if not, it wil draw a gost bias next to output layer)
+                if not(i == len(self.topology) - 1 and j == self.topology[i]):
+                    ### Draw Circles ###
+                    # First the bigger background to clear anything (clearance between circle and lines)
+                    self.draw_circle(draw, centerX, centerY, radius + lineClearance, cBackground)
+                    # Second the border circle
+                    self.draw_circle(draw, centerX, centerY, radius, cBorder)
+                    # Fill it with the correct botder size
+                    self.draw_circle(draw, centerX, centerY, radius - borderSize, infill)
                 
-                self.draw_circle(draw, 
-                                 xStep * i + nSize + horClearance, 
-                                 yStep * j + nSize + verClearance, 
-                                 nSize, cBorder)
-                self.draw_circle(draw, 
-                                 xStep * i + nSize + horClearance, 
-                                 yStep * j + nSize + verClearance, 
-                                 nSize - borderSize, infill)
                 if(grid): draw.line((xStep * i, j*height/self.topology[i],xStep * i + width/3 ,  j*height/self.topology[i]), width=1)
                 
-                        
         del draw
         self.image=img
         return img
@@ -208,4 +236,6 @@ if __name__ == "__main__":
     NN = NeuralNet([2, 3, 1])
     NN.draw_diagram(inputLabels=['Study', 'Sleep'], outputLabels=['Score'])
     NN.save_image()
-    # print(o)
+    
+    o = NN.forward_propagation(X)
+    print(o)
