@@ -3,6 +3,7 @@ from PIL import Image, ImageDraw
 from pyglet.window import key, FPSDisplay
 import math
 import random
+import numpy as np
 from helperFunctions import map
 from NeuralNet import *
 
@@ -180,7 +181,7 @@ class Ball(GameObject):
         self.startDelay = 2
         self.startCount = 0
         self.movingModule = self.module
-        self.startPosition = [window.width//2 - self.boundingBox[0]//2, window.height//2 - self.boundingBox[1]//2 - 50]
+        self.startPosition = [self.window.playArea[0]//2 - self.boundingBox[0]//2, window.height//2 - self.boundingBox[1]//2 - 50]
         self.position = list(self.startPosition)
         self.rolling = False
     
@@ -264,21 +265,20 @@ class MatchHandler:
         # Create players based on parameters
         # Player one can be auto or manual
         if p1 == 'Auto':
-            self.playerOne = PlayerAuto(self.window, [15, self.window.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
+            self.playerOne = PlayerAuto(self.window, [15, self.window.playArea[1]//2], player_image, [0, self.playersSpeed], batch=self.actors)
         elif p1 == 'Manual':
-            self.playerOne = PlayerManual(self.window, [15, self.window.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
+            self.playerOne = PlayerManual(self.window, [15, self.window.playArea[1]//2], player_image, [0, self.playersSpeed], batch=self.actors)
         # Player 2 can be auto, manual or neuralnet
         if p2 == 'Auto':
-            self.playerTwo = PlayerAuto(self.window, [self.window.width-8-15, self.window.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
+            self.playerTwo = PlayerAuto(self.window, [self.window.playArea[0]-8-15, self.window.playArea[1]//2], player_image, [0, self.playersSpeed], batch=self.actors)
         elif p2 == 'Manual':
-            self.playerTwo = PlayerManual(self.window, [self.window.width-8-15, self.window.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
+            self.playerTwo = PlayerManual(self.window, [self.window.playArea[0]-8-15, self.window.playArea[1]//2], player_image, [0, self.playersSpeed], batch=self.actors)
         elif p2 == 'NeuralNet':
-            self.playerTwo = PlayerNN(self.window, [self.window.width-8-15, self.window.height//2], self.neuralNet, self.ballSpeedModule, player_image, [0, self.playersSpeed], batch=self.actors)
+            self.playerTwo = PlayerNN(self.window, [self.window.playArea[0]-8-15, self.window.playArea[1]//2], self.neuralNet, self.ballSpeedModule, player_image, [0, self.playersSpeed], batch=self.actors)
         
         # Create ball
         self.ball = Ball(self.window, (200,200), ball_image, self.ballSpeedModule, batch=self.actors)
         
-                
         # If neuralnetwork, acomodate for drawing on window
         if nn is not None:
             # generate image
@@ -294,10 +294,10 @@ class MatchHandler:
             netDiagram = netDiagram.resize((width, height), Image.ANTIALIAS)
             
             # Add to menu
-            self.nnDiagram = GameObject(self,[self.window.width+leftClearance, 0], netDiagram)
+            self.nnDiagram = GameObject(self,[self.window.playArea[0]+leftClearance, 0], netDiagram)
             
             # Resize window to fit
-            self.window.set_size(self.window.width + netDiagram.width + leftClearance, self.window.height)
+            self.window.set_size(self.window.playArea[0] + netDiagram.width + leftClearance, self.window.height)
 
     def update(self,dt):
         if not self.victory:
@@ -324,25 +324,18 @@ class MatchHandler:
             if self.neuralNet is not None:
                 self.nnDiagram.draw()
         else:
-            txt = pyglet.text.Label('Victory: Player ' + str(self.victory), 
-                              x = self.window.width/2, 
-                              y = self.window.height/2, 
-                              align='center', 
-                              font_size=26, 
-                              bold=True
-                              )
-            txt.anchor_x = txt.anchor_y = 'center'
-            txt.draw()
+            pass
             
 
 class GameWindow(pyglet.window.Window):
-    def __init__(self, x, y, title, nn=None):
+    def __init__(self, x, y, title):
         super().__init__(x, y, title)
-        self.frame_rate = 1/30
+        self.frame_rate = 1/24
         self.fps_display = FPSDisplay(self)
         self.fps_display.label.font_size = 10
         self.playArea = [self.width, self.height-100]
-        
+        self.timeout = 3 # Time before closing window
+        self.closeWindow = False # Flag to know when to close window
         # Key monitor
         self.keys = key.KeyStateHandler()
         self.push_handlers(self.keys)
@@ -356,19 +349,72 @@ class GameWindow(pyglet.window.Window):
         self.interfaceObjects.append(GameObject(self,[self.width//2 - 1, 0], midLine,batch=self.interface))        
         
         # Run games
-        self.mainGame = MatchHandler(self, 'Auto', 'NeuralNet', nn=nn, color=(255,0,255,255))
+        # List of type [winner, score p1, score p2, matcHandler]
+        self.games = []
         
     def update(self,dt):
-        self.mainGame.update(dt)
-
+        # Check if there is any game running:
+        self.closeWindow = all(g[0] != 0 for g in self.games)
+        
+        # if there are, update all running games
+        if not self.closeWindow:
+            for game in self.games:
+                if game[0] == 0:
+                    game[3].update(dt)
+                    game[0] = game[3].victory
+                    game[1] = game[3].playerOne.points
+                    game[2] = game[3].playerTwo.points
+        else:
+            self.timeout -= dt
+            if self.timeout <= 0:
+                self.close()
+            
     def on_draw(self):
         self.clear()
-        self.interface.draw()
-        self.mainGame.on_draw()
+        if not self.closeWindow:
+            self.interface.draw()
+            for game in self.games:
+                if game[0] == 0:
+                    game[3].on_draw()
+        else:
+            text = 'Results:\n'
+            for i, game in enumerate(self.games):
+                text += "  Game %i: %ix%i\n" % (i, game[1], game[2])
+            # Draw results
+            label = pyglet.text.Label(text,
+                                       y = self.height - 30,
+                                       x = 10,
+                                       multiline=True,
+                                       width = self.width,
+                                       height = self.height)
+            label.draw()
         self.fps_display.draw()
-        
+    
+    def addGame(self, typeP1, typeP2, color=(255,255,255,255), nn=None):
+        self.games.append([0, 0, 0, MatchHandler(self,
+                                        typeP1,
+                                        typeP2,
+                                        nn=nn,
+                                        color=color)])
+    
+    def results(self):
+        return self.games
 if __name__ == "__main__":
-    NN = NeuralNet([6, 3, 1], 1)
-    window = GameWindow(500, 500, 'SmartPong', nn=NN)
+    # Create game window
+    window = GameWindow(500, 500, 'SmartPong')
+    for i in range(6):
+        # Create random neural net
+        NN = NeuralNet([6, 3, 1])
+        # Add games to window
+        window.addGame('Auto', 'NeuralNet', nn=NN, color=(np.random.randint(0,255),
+                                                          np.random.randint(0,255),
+                                                          np.random.randint(0,255),
+                                                          100))
+    
+    # Start game
     pyglet.clock.schedule_interval(window.update, window.frame_rate)
     pyglet.app.run()
+    
+    for result in window.results():
+        print(result)
+    del window
