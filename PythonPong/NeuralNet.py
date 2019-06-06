@@ -11,7 +11,10 @@ def mapFromTo(x,a,b,c,d):
    return y
 
 class NeuralNet(object):
-    def __init__(self, topology=[]):
+    def __init__(self, topology=[], seed=None):
+        if seed is not None:
+            np.random.seed(seed)
+        
         if len(topology) < 2:
             print("Error: topology should be a list with at least 2 values in the format:")
             print("[InputNumber, hidden_layer_1_neurons, hidden_layer_2_neurons, outputNumber...]")
@@ -217,7 +220,6 @@ class NeuralNet(object):
 if __name__ == "__main__":
     # Based on:
     # https://enlight.nyc/projects/neural-network/
-    np.random.seed(5541)
     # X = (hours studying, hours sleeping), y = score on test
     xAll = np.array(([2, 9], [1, 5], [3, 6], [5, 10]), dtype=float) # input data
     y = np.array(([92], [86], [89]), dtype=float) # output
@@ -233,7 +235,7 @@ if __name__ == "__main__":
     # print(X)
     # print(y)
     
-    NN = NeuralNet([2, 3, 1])
+    NN = NeuralNet([2, 3, 1], 5541)
     NN.draw_diagram(inputLabels=['Study', 'Sleep'], outputLabels=['Score'])
     NN.save_image()
     
