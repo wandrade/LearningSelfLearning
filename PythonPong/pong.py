@@ -4,7 +4,7 @@ from pyglet.window import key, FPSDisplay
 import math
 import random
 import numpy as np
-from helperFunctions import map
+from helperFunctions import *
 from NeuralNet import *
 
 random.seed(1)
@@ -173,7 +173,7 @@ class PlayerNN(GameObject):
         super().update(dt)
 
 class Ball(GameObject):
-    def __init__(self, window, position, visual=None, velModule=300, batch=None):
+    def __init__(self, window, game, position, visual=None, velModule=300, batch=None):
         self.module = velModule
         self.angle = 45
         self.velocity = [0, 0]
@@ -184,6 +184,7 @@ class Ball(GameObject):
         self.startPosition = [self.window.playArea[0]//2 - self.boundingBox[0]//2, window.height//2 - self.boundingBox[1]//2 - 50]
         self.position = list(self.startPosition)
         self.rolling = False
+        self.game = game
     
     def set_cartesian_vel(self, mod, ang):
         self.velocity = [mod*math.cos(ang*math.pi/180), mod*math.sin(ang*math.pi/180)]
@@ -205,6 +206,8 @@ class Ball(GameObject):
                     p2.score()
                 else:
                     p1.score()
+                #  update scoreboard
+                self.game.updateScoreBoard()
                 self.rolling = False
                 self.velocity = [0,0]
                 self.position = list(self.startPosition)
@@ -246,6 +249,7 @@ class MatchHandler:
         self.playersSpeed = 180
         self.ballSpeedModule = 400
         self.endScore = 11
+        
         self.victory = 0
         self.neuralNet = nn
         self.color = color
@@ -258,6 +262,7 @@ class MatchHandler:
         draw = ImageDraw.Draw(ball_image)
         draw.ellipse((0,0,ball_radius,ball_radius), color)
         del draw
+        
         
         # Batch
         self.actors = pyglet.graphics.Batch()
@@ -276,8 +281,9 @@ class MatchHandler:
         elif p2 == 'NeuralNet':
             self.playerTwo = PlayerNN(self.window, [self.window.playArea[0]-8-15, self.window.playArea[1]//2], self.neuralNet, self.ballSpeedModule, player_image, [0, self.playersSpeed], batch=self.actors)
         
+        self.updateScoreBoard()
         # Create ball
-        self.ball = Ball(self.window, (200,200), ball_image, self.ballSpeedModule, batch=self.actors)
+        self.ball = Ball(self.window, self, (200,200), ball_image, self.ballSpeedModule, batch=self.actors)
         
         # If neuralnetwork, acomodate for drawing on window
         if nn is not None:
@@ -301,7 +307,6 @@ class MatchHandler:
 
     def update(self,dt):
         if not self.victory:
-            
             self.ball.update(dt, self.playerOne, self.playerTwo)
             self.playerOne.update(dt, self.ball)
             self.playerTwo.update(dt, self.ball)
@@ -311,20 +316,18 @@ class MatchHandler:
                 self.victory = 1
             elif self.playerTwo.points >= self.endScore:
                 self.victory = 2
-            
+    
+    def updateScoreBoard(self):
+        self.p1p = pyglet.text.Label(str(self.playerOne.points), x=self.window.playArea[0]/4, y = 450, align='center', font_size=26, bold=True, color=self.color)
+        self.p1p.anchor_x = self.p1p.anchor_y = 'center'
+        self.p2p = pyglet.text.Label(str(self.playerTwo.points), x=3*self.window.playArea[0]/4, y = 450, align='center', font_size=26, bold=True, color=self.color)
+        self.p2p.anchor_x = self.p2p.anchor_y = 'center'
+        
     def on_draw(self):
         if not self.victory:
             self.actors.draw()
-            p1p = pyglet.text.Label(str(self.playerOne.points), x=self.window.playArea[0]/4, y = 450, align='center', font_size=26, bold=True, color=self.color)
-            p1p.anchor_x = p1p.anchor_y = 'center'
-            p1p.draw()
-            p2p = pyglet.text.Label(str(self.playerTwo.points), x=3*self.window.playArea[0]/4, y = 450, align='center', font_size=26, bold=True, color=self.color)
-            p2p.anchor_x = p2p.anchor_y = 'center'
-            p2p.draw()
-            if self.neuralNet is not None:
-                self.nnDiagram.draw()
-        else:
-            pass
+            self.p1p.draw()
+            self.p2p.draw()
             
 
 class GameWindow(pyglet.window.Window):
@@ -351,6 +354,8 @@ class GameWindow(pyglet.window.Window):
         # Run games
         # List of type [winner, score p1, score p2, matcHandler]
         self.games = []
+        self.neuralNet = False
+        self.best = [-1,-1,-1,-1]
         
     def update(self,dt):
         # Check if there is any game running:
@@ -368,19 +373,28 @@ class GameWindow(pyglet.window.Window):
             self.timeout -= dt
             if self.timeout <= 0:
                 self.close()
-            
+    
     def on_draw(self):
         self.clear()
+        
+        # Draw highest score neuralnet
+        if self.neuralNet and self.best[3] != -1:
+            self.best[3].nnDiagram.draw()
+            
+        # Draw active games if exists
         if not self.closeWindow:
             self.interface.draw()
             for game in self.games:
                 if game[0] == 0:
                     game[3].on_draw()
+                    if game[2] > self.best[2]:
+                        self.best = game 
+        
+        # Draw all game results
         else:
             text = 'Results:\n'
             for i, game in enumerate(self.games):
                 text += "  Game %i: %ix%i\n" % (i, game[1], game[2])
-            # Draw results
             label = pyglet.text.Label(text,
                                        y = self.height - 30,
                                        x = 10,
@@ -397,12 +411,16 @@ class GameWindow(pyglet.window.Window):
                                         nn=nn,
                                         color=color)])
     
+        if typeP2 == 'NeuralNet':
+            self.neuralNet = True
+    
     def results(self):
         return self.games
+
 if __name__ == "__main__":
     # Create game window
     window = GameWindow(500, 500, 'SmartPong')
-    for i in range(6):
+    for i in range(40):
         # Create random neural net
         NN = NeuralNet([6, 3, 1])
         # Add games to window
