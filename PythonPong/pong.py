@@ -133,11 +133,12 @@ class PlayerManual(GameObject):
         super().update(dt)
 
 class PlayerNN(GameObject):
-    def __init__(self, window, position, neuralNet, visual=None, velocity=[0,0], batch=None):
+    def __init__(self, window, position, neuralNet, ballSpeed, visual=None, velocity=[0,0], batch=None):
         super().__init__(window, position, visual=visual, velocity=velocity, batch=batch)
         self.points = 0
         self.maxSpeed = velocity[1]
         self.neuralNet = neuralNet
+        self.ballSpeedModule = ballSpeed
         
     def score(self):
         self.points += 1
@@ -149,8 +150,8 @@ class PlayerNN(GameObject):
             self.center[1]/self.window.playArea[1],
             ball.center[0]/self.window.playArea[0],
             ball.center[1]/self.window.playArea[1],
-            ball.velocity[0]/self.window.ballSpeedModule,
-            ball.velocity[1]/self.window.ballSpeedModule
+            ball.velocity[0]/self.ballSpeedModule,
+            ball.velocity[1]/self.ballSpeedModule
         ]]
         
         # Eval neuralnet
@@ -238,18 +239,14 @@ class Ball(GameObject):
             
         super().update(dt)
 
-class GameWindow(pyglet.window.Window):
-    def __init__(self, x, y, title, nn=None):
-        super().__init__(x, y, title)
-        self.frame_rate = 1/60
+class MatchHandler:
+    def __init__(self, window, p1, p2, nn=None):
+        self.window = window
         self.playersSpeed = 180
-        self.ballSpeedModule = 400 
-        self.fps_display = FPSDisplay(self)
-        self.fps_display.label.font_size = 10
+        self.ballSpeedModule = 400
         self.endScore = 11
         self.victory = 0
         self.neuralNet = nn
-        self.playArea = [self.width, self.height-100]
         
         # Actors
         player_image = Image.new('RGBA', (8,80), (255,255,255,255))
@@ -263,23 +260,24 @@ class GameWindow(pyglet.window.Window):
         # Batch
         self.actors = pyglet.graphics.Batch()
         
-        self.playerOne = PlayerAuto(self, [15, self.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
-        #self.playerTwo = PlayerManual(self, [self.width-8-15, self.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
-        self.playerTwo = PlayerNN(self, [self.width-8-15, self.height//2], self.neuralNet ,player_image, [0, self.playersSpeed], batch=self.actors)
-        self.ball = Ball(self, (200,200), ball_image, self.ballSpeedModule, batch=self.actors)
+        # Create players based on parameters
+        # Player one can be auto or manual
+        if p1 == 'Auto':
+            self.playerOne = PlayerAuto(self.window, [15, self.window.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
+        elif p1 == 'Manual':
+            self.playerOne = PlayerManual(self.window, [15, self.window.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
+        # Player 2 can be auto, manual or neuralnet
+        if p2 == 'Auto':
+            self.playerTwo = PlayerAuto(self.window, [self.window.width-8-15, self.window.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
+        elif p2 == 'Manual':
+            self.playerTwo = PlayerManual(self.window, [self.window.width-8-15, self.window.height//2], player_image, [0, self.playersSpeed], batch=self.actors)
+        elif p2 == 'NeuralNet':
+            self.playerTwo = PlayerNN(self.window, [self.window.width-8-15, self.window.height//2], self.neuralNet, self.ballSpeedModule, player_image, [0, self.playersSpeed], batch=self.actors)
         
-        # Key monitor
-        self.keys = key.KeyStateHandler()
-        self.push_handlers(self.keys)
+        # Create ball
+        self.ball = Ball(self.window, (200,200), ball_image, self.ballSpeedModule, batch=self.actors)
         
-        # Menu
-        self.interface = pyglet.graphics.Batch()
-        self.interfaceObjects = []
-        upperBar = Image.new('RGBA', (self.width, 4), (255,255,255,200))
-        midLine = Image.new('RGBA', (2, 400), (255,255,255,60))
-        self.interfaceObjects.append(GameObject(self,[0,400],upperBar,batch=self.interface))
-        self.interfaceObjects.append(GameObject(self,[self.width//2 - 1, 0], midLine,batch=self.interface))
-        
+                
         # If neuralnetwork, acomodate for drawing on window
         if nn is not None:
             # generate image
@@ -288,16 +286,18 @@ class GameWindow(pyglet.window.Window):
             height  = netDiagram.height
             aspectRatio = width/height
             leftClearance = 20
+            
             # Scale to fit on rigth side of screen
-            height = self.height
+            height = self.window.height
             width = int(aspectRatio*height)        
             netDiagram = netDiagram.resize((width, height), Image.ANTIALIAS)
+            
             # Add to menu
-            self.interfaceObjects.append(GameObject(self,[self.width+leftClearance, 0], netDiagram, batch=self.interface))
+            self.nnDiagram = GameObject(self,[self.window.width+leftClearance, 0], netDiagram)
+            
             # Resize window to fit
-            self.set_size(self.width + netDiagram.width + leftClearance, self.height)
-        
-        
+            self.window.set_size(self.window.width + netDiagram.width + leftClearance, self.window.height)
+
     def update(self,dt):
         if not self.victory:
             
@@ -310,29 +310,61 @@ class GameWindow(pyglet.window.Window):
                 self.victory = 1
             elif self.playerTwo.points >= self.endScore:
                 self.victory = 2
-
+            
     def on_draw(self):
-        self.clear()
         if not self.victory:
-            self.interface.draw()
             self.actors.draw()
-            self.fps_display.draw()
-            p1p = pyglet.text.Label(str(self.playerOne.points), x=self.playArea[0]/4, y = 450, align='center', font_size=26, bold=True)
+            p1p = pyglet.text.Label(str(self.playerOne.points), x=self.window.playArea[0]/4, y = 450, align='center', font_size=26, bold=True)
             p1p.anchor_x = p1p.anchor_y = 'center'
             p1p.draw()
-            p2p = pyglet.text.Label(str(self.playerTwo.points), x=3*self.playArea[0]/4, y = 450, align='center', font_size=26, bold=True)
+            p2p = pyglet.text.Label(str(self.playerTwo.points), x=3*self.window.playArea[0]/4, y = 450, align='center', font_size=26, bold=True)
             p2p.anchor_x = p2p.anchor_y = 'center'
             p2p.draw()
+            if self.neuralNet is not None:
+                self.nnDiagram.draw()
         else:
             txt = pyglet.text.Label('Victory: Player ' + str(self.victory), 
-                              x = self.width/2, 
-                              y = self.height/2, 
+                              x = self.window.width/2, 
+                              y = self.window.height/2, 
                               align='center', 
                               font_size=26, 
                               bold=True
                               )
             txt.anchor_x = txt.anchor_y = 'center'
             txt.draw()
+            
+
+class GameWindow(pyglet.window.Window):
+    def __init__(self, x, y, title, nn=None):
+        super().__init__(x, y, title)
+        self.frame_rate = 1/30
+        self.fps_display = FPSDisplay(self)
+        self.fps_display.label.font_size = 10
+        self.playArea = [self.width, self.height-100]
+        
+        # Key monitor
+        self.keys = key.KeyStateHandler()
+        self.push_handlers(self.keys)
+        
+        # Menu
+        self.interface = pyglet.graphics.Batch()
+        self.interfaceObjects = []
+        upperBar = Image.new('RGBA', (self.width, 4), (255,255,255,200))
+        midLine = Image.new('RGBA', (2, 400), (255,255,255,60))
+        self.interfaceObjects.append(GameObject(self,[0,400],upperBar,batch=self.interface))
+        self.interfaceObjects.append(GameObject(self,[self.width//2 - 1, 0], midLine,batch=self.interface))        
+        
+        # Run games
+        self.mainGame = MatchHandler(self, 'Auto', 'NeuralNet', nn=nn)
+        
+    def update(self,dt):
+        self.mainGame.update(dt)
+
+    def on_draw(self):
+        self.clear()
+        self.interface.draw()
+        self.mainGame.on_draw()
+        self.fps_display.draw()
         
 if __name__ == "__main__":
     NN = NeuralNet([6, 3, 1], 1)
