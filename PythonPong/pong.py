@@ -240,21 +240,22 @@ class Ball(GameObject):
         super().update(dt)
 
 class MatchHandler:
-    def __init__(self, window, p1, p2, nn=None):
+    def __init__(self, window, p1, p2, nn=None, color=(255,255,255,255)):
         self.window = window
         self.playersSpeed = 180
         self.ballSpeedModule = 400
         self.endScore = 11
         self.victory = 0
         self.neuralNet = nn
+        self.color = color
         
         # Actors
-        player_image = Image.new('RGBA', (8,80), (255,255,255,255))
+        player_image = Image.new('RGBA', (8,80), color)
         
         ball_radius = 9
         ball_image = Image.new('RGBA', (ball_radius,ball_radius), (0,0,0,255))
         draw = ImageDraw.Draw(ball_image)
-        draw.ellipse((0,0,ball_radius,ball_radius),(255,255,255,255))
+        draw.ellipse((0,0,ball_radius,ball_radius), color)
         del draw
         
         # Batch
@@ -314,10 +315,10 @@ class MatchHandler:
     def on_draw(self):
         if not self.victory:
             self.actors.draw()
-            p1p = pyglet.text.Label(str(self.playerOne.points), x=self.window.playArea[0]/4, y = 450, align='center', font_size=26, bold=True)
+            p1p = pyglet.text.Label(str(self.playerOne.points), x=self.window.playArea[0]/4, y = 450, align='center', font_size=26, bold=True, color=self.color)
             p1p.anchor_x = p1p.anchor_y = 'center'
             p1p.draw()
-            p2p = pyglet.text.Label(str(self.playerTwo.points), x=3*self.window.playArea[0]/4, y = 450, align='center', font_size=26, bold=True)
+            p2p = pyglet.text.Label(str(self.playerTwo.points), x=3*self.window.playArea[0]/4, y = 450, align='center', font_size=26, bold=True, color=self.color)
             p2p.anchor_x = p2p.anchor_y = 'center'
             p2p.draw()
             if self.neuralNet is not None:
@@ -355,7 +356,7 @@ class GameWindow(pyglet.window.Window):
         self.interfaceObjects.append(GameObject(self,[self.width//2 - 1, 0], midLine,batch=self.interface))        
         
         # Run games
-        self.mainGame = MatchHandler(self, 'Auto', 'NeuralNet', nn=nn)
+        self.mainGame = MatchHandler(self, 'Auto', 'NeuralNet', nn=nn, color=(255,0,255,255))
         
     def update(self,dt):
         self.mainGame.update(dt)
