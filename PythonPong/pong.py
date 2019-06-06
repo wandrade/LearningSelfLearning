@@ -2,12 +2,11 @@ import pyglet
 from PIL import Image, ImageDraw
 from pyglet.window import key, FPSDisplay
 import math
-import random
 import numpy as np
 from helperFunctions import *
 from NeuralNet import *
+from memory_profiler import profile
 
-random.seed(1)
 
 class GameObject:
     def __init__(self, window, position, visual=None, velocity=[0,0], batch=None):
@@ -95,7 +94,7 @@ class PlayerAuto(GameObject):
         else:
             self.velocity[1] = 0
         
-        borderHit = self.hit_border([0, window.width - window.playArea[0], 0, window.height - window.playArea[1]])
+        borderHit = self.hit_border([0, self.window.width - self.window.playArea[0], 0, self.window.height - self.window.playArea[1]])
         # if hit horizontal walls
         # and trying to move past it
         # Set velociti to zero and move to wall limit (this move is to avoid ugly looks due to variations on dt)
@@ -125,7 +124,7 @@ class PlayerManual(GameObject):
             self.velocity[1] = -self.maxSpeed
         else:
             self.velocity[1] = 0
-        borderHit = self.hit_border([0, window.width - window.playArea[0], 0, window.height - window.playArea[1]])
+        borderHit = self.hit_border([0, self.window.width - self.window.playArea[0], 0, self.window.height - self.window.playArea[1]])
         # Hit horizontal walls
         if borderHit[1] == 1:
             self.velocity[1] = -abs(self.velocity[1])
@@ -164,7 +163,7 @@ class PlayerNN(GameObject):
             self.velocity[1] = -self.maxSpeed
         else:
             self.velocity[1] = 0
-        borderHit = self.hit_border([0, window.width - window.playArea[0], 0, window.height - window.playArea[1]])
+        borderHit = self.hit_border([0, self.window.width - self.window.playArea[0], 0, self.window.height - self.window.playArea[1]])
         # Hit horizontal walls
         if borderHit[1] == 1:
             self.velocity[1] = -abs(self.velocity[1])
@@ -181,7 +180,7 @@ class Ball(GameObject):
         self.startDelay = 2
         self.startCount = 0
         self.movingModule = self.module
-        self.startPosition = [self.window.playArea[0]//2 - self.boundingBox[0]//2, window.height//2 - self.boundingBox[1]//2 - 50]
+        self.startPosition = [self.window.playArea[0]//2 - self.boundingBox[0]//2, self.window.height//2 - self.boundingBox[1]//2 - 50]
         self.position = list(self.startPosition)
         self.rolling = False
         self.game = game
@@ -190,7 +189,7 @@ class Ball(GameObject):
         self.velocity = [mod*math.cos(ang*math.pi/180), mod*math.sin(ang*math.pi/180)]
     
     def update(self, dt, p1, p2):
-        borderHit = self.hit_border([0, window.width - window.playArea[0], 0, window.height - window.playArea[1]])
+        borderHit = self.hit_border([0, self.window.width - self.window.playArea[0], 0, self.window.height - self.window.playArea[1]])
         if self.rolling:
             # Hit horizontal walls
             # Bounce with same angle
@@ -235,9 +234,9 @@ class Ball(GameObject):
                 self.rolling = True
                 
                 # Random shooting angle between 80 and -80
-                self.set_cartesian_vel(300, random.randint(-80, 80))
+                self.set_cartesian_vel(300, np.random.randint(-80, 80))
                 # Random direction
-                if random.random() >= 0.5:
+                if np.random.random() >= 0.5:
                     self.velocity[0] *= -1
                 
             
@@ -248,7 +247,7 @@ class MatchHandler:
         self.window = window
         self.playersSpeed = 180
         self.ballSpeedModule = 400
-        self.endScore = 11
+        self.endScore = 1
         
         self.victory = 0
         self.neuralNet = nn
@@ -329,7 +328,6 @@ class MatchHandler:
             self.p1p.draw()
             self.p2p.draw()
             
-
 class GameWindow(pyglet.window.Window):
     def __init__(self, x, y, title):
         super().__init__(x, y, title)
@@ -356,7 +354,7 @@ class GameWindow(pyglet.window.Window):
         self.games = []
         self.neuralNet = False
         self.best = [-1,-1,-1,-1]
-        
+      
     def update(self,dt):
         # Check if there is any game running:
         self.closeWindow = all(g[0] != 0 for g in self.games)
@@ -417,10 +415,12 @@ class GameWindow(pyglet.window.Window):
     def results(self):
         return self.games
 
-if __name__ == "__main__":
+@profile
+def main():
+    np.random.seed(1)
     # Create game window
     window = GameWindow(500, 500, 'SmartPong')
-    for i in range(40):
+    for i in range(3):
         # Create random neural net
         NN = NeuralNet([6, 3, 1])
         # Add games to window
@@ -435,4 +435,6 @@ if __name__ == "__main__":
     
     for result in window.results():
         print(result)
-    del window
+
+if __name__ == "__main__":
+    main()
