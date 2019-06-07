@@ -417,6 +417,9 @@ class GameWindow(pyglet.window.Window):
         return self.games
 
 def get_fitness(neuralnets, titlePostfix = ''): # why doesnt it free any memory? the scope is closed
+    # Uncomment for debugging loop purpuses
+    # return np.random.randint(-11,12, len(neuralnets))
+    
     # Create game window
     window = GameWindow(500, 500, 'SmartPong' + titlePostfix)
     
@@ -442,8 +445,8 @@ def get_fitness(neuralnets, titlePostfix = ''): # why doesnt it free any memory?
 def main():
     # NEAT algorithm (I think) to train(find) best neuralnet to beat pong
     topology = [6, 5, 1]
-    populationSize = 40
-    epochs = 100
+    populationSize = 20
+    epochs = 300
     mutationFactor = 0.3
     crossoverFactor = 0.1
     
@@ -501,8 +504,12 @@ def main():
             # Add offspring gene code to candidates
             populationCandidates[individualIndex].set_weights(offspring)
         
-        # Evaluate fitness of offspring
-        candidatesFitness = get_fitness(populationCandidates, ': epoch %i/%i' % (epoch, epochs-1))
+        # Evaluate fitness of offspring and elders (to make sure it wasnt luck)
+        candidatesFitness = get_fitness(populationCandidates + population
+                                        , ': epoch %i/%i' % (epoch, epochs-1))
+        
+        fitness = candidatesFitness[populationSize:]
+        candidatesFitness = candidatesFitness[:populationSize]
         
         # Replace individuals that performed worse than theyr offsprring (greedy method)
         for candidateIndex in range(populationSize):
