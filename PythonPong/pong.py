@@ -6,7 +6,8 @@ import numpy as np
 from helperFunctions import *
 from NeuralNet import *
 from memory_profiler import profile
-
+import matplotlib
+import matplotlib.pyplot as plt
 
 class GameObject:
     def __init__(self, window, position, visual=None, velocity=[0,0], batch=None):
@@ -247,7 +248,7 @@ class MatchHandler:
         self.window = window
         self.playersSpeed = 180
         self.ballSpeedModule = 400
-        self.endScore = 1
+        self.endScore = 11
         
         self.victory = 0
         self.neuralNet = nn
@@ -415,26 +416,110 @@ class GameWindow(pyglet.window.Window):
     def results(self):
         return self.games
 
-@profile
-def main():
-    np.random.seed(1)
+def get_fitness(neuralnets, titlePostfix = ''): # why doesnt it free any memory? the scope is closed
     # Create game window
-    window = GameWindow(500, 500, 'SmartPong')
-    for i in range(3):
-        # Create random neural net
-        NN = NeuralNet([6, 3, 1])
+    window = GameWindow(500, 500, 'SmartPong' + titlePostfix)
+    
+    # Populate game window
+    for nn in neuralnets:
         # Add games to window
-        window.addGame('Auto', 'NeuralNet', nn=NN, color=(np.random.randint(0,255),
+        window.addGame('Auto', 'NeuralNet', nn=nn, color=(np.random.randint(0,255),
                                                           np.random.randint(0,255),
                                                           np.random.randint(0,255),
                                                           100))
-    
     # Start game
     pyglet.clock.schedule_interval(window.update, window.frame_rate)
     pyglet.app.run()
     
+    fitness = []
+    # get results and calculate fitness
     for result in window.results():
-        print(result)
+        # Change here for different fitness evaluations
+        fitness.append(result[2]) # simple 'make most points'
+    return fitness
 
+# @profile
+def main():
+    # NEAT algorithm (I think) to train(find) best neuralnet to beat pong
+    topology = [6, 5, 1]
+    populationSize = 40
+    epochs = 100
+    mutationFactor = 0.3
+    crossoverFactor = 0.1
+    
+    population = []
+    populationCandidates = []
+    fitness = []
+    candidatesFitness = []
+    
+    # For plotting purposes
+    development = []
+    fig, ax = plt.subplots()
+    ax.grid()
+    ax.set_title('Fitness over time')
+    ax.set_ylabel('Fitness')
+    ax.set_xlabel('Epochs')
+    
+    np.random.seed(1)
+    # Initial random population
+    for i in range(populationSize):
+        population.append(NeuralNet(topology))
+        populationCandidates.append(NeuralNet(topology)) # Just to initialize neuralnet, weigths will be replaced later
+        
+    # Get fitness vector for first generation
+    fitness = get_fitness(population, ': Initializing population')
+    development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
+    
+    # start genetic loop (diferential genetic algoritm)
+    for epoch in range(epochs):
+        
+        # Build new population of neuralnetworks
+        for individualIndex in range(populationSize):
+            # get weigths of individual
+            individual = population[individualIndex].get_weights()
+            
+            # Create new individual based on others for DNA donation
+            # Get 3 random individuals (excluding current) for diferential algoritm
+            candidatesIndexList = list(range(populationSize))
+            candidatesIndexList.remove(individualIndex)
+            chosen = np.random.choice(candidatesIndexList, 3)
+            
+            # Get diference of the two first one:
+            diff = population[chosen[0]].get_weights() - population[chosen[1]].get_weights()
+            
+            # mutationFactor*diff + third random vector
+            donor = mutationFactor*diff + population[chosen[2]].get_weights()
+            
+            # Crossover of donor and individual:
+            # Replace the individual gene for the donor randomly
+            offspring = np.array([])
+            for gene in range(len(donor)):
+                if np.random.random() <= crossoverFactor:
+                    offspring = np.append(offspring, donor[gene])
+                else:
+                    offspring = np.append(offspring, individual[gene])
+            # Add offspring gene code to candidates
+            populationCandidates[individualIndex].set_weights(offspring)
+        
+        # Evaluate fitness of offspring
+        candidatesFitness = get_fitness(populationCandidates, ': epoch %i/%i' % (epoch, epochs-1))
+        
+        # Replace individuals that performed worse than theyr offsprring (greedy method)
+        for candidateIndex in range(populationSize):
+            if candidatesFitness[candidateIndex] > fitness[candidateIndex]:
+                population[candidateIndex] = populationCandidates[candidateIndex]
+                fitness[candidateIndex] = candidatesFitness[candidateIndex]
+        
+        # Record of fitness over time
+        development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
+        
+        # Plot development
+        ax.plot(list(zip(*development))[0], color='green')
+        ax.plot(list(zip(*development))[1], color='yellow')
+        ax.plot(list(zip(*development))[2], color='red')
+        plt.draw()
+        plt.pause(0.001)
+    plt.show()
+    print(population)
 if __name__ == "__main__":
     main()
