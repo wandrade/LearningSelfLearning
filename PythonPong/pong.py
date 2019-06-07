@@ -8,7 +8,8 @@ from NeuralNet import *
 from memory_profiler import profile
 import matplotlib
 import matplotlib.pyplot as plt
-
+import pickle
+import os
 class GameObject:
     def __init__(self, window, position, visual=None, velocity=[0,0], batch=None):
         self.window     = window        # Pointer to a pyglet window object
@@ -464,10 +465,22 @@ def main():
     ax.set_xlabel('Epochs')
     
     np.random.seed(1)
-    # Initial random population
+    
+    # if not, initialize random population
+    print('Initializing neural networks')
     for i in range(populationSize):
         population.append(NeuralNet(topology))
         populationCandidates.append(NeuralNet(topology)) # Just to initialize neuralnet, weigths will be replaced later
+    
+    # Check if there are any dump files, if there are load from them
+    if os.path.isfile('./dump_history') and os.path.isfile('./dump_population'):
+        print('Loading population')
+        with open('dump_history', 'rb') as fp:
+            development = pickle.load(fp)
+        with open('dump_population', 'rb') as fp:
+            popWeights = pickle.load(fp)
+        for i in range(len(popWeights)):
+            population[i].set_weights(popWeights[i])
         
     # Get fitness vector for first generation
     fitness = get_fitness(population, ': Initializing population')
@@ -526,7 +539,15 @@ def main():
         ax.plot(list(zip(*development))[2], color='red')
         plt.draw()
         plt.pause(0.001)
+        
+        # Save current results so program can continue from where it started
+        with open('dump_history', 'wb') as fp:
+            pickle.dump(development, fp)
+        with open('dump_population', 'wb') as fp:
+            pickle.dump([weight.get_weights() for weight in population], fp)
+        
     plt.show()
     print(population)
+
 if __name__ == "__main__":
     main()
