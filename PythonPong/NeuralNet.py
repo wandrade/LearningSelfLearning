@@ -209,13 +209,13 @@ class NeuralNet(object):
             for node in w:
                 for weight in node:
                     wVec.append(weight)
-        return wVec
+        return np.array(wVec)
     
     def set_weights(self, wVec):
         for i in range(len(self.W)):
             for j in range(self.W[i].shape[0]):
                 for k in range(self.W[i][j].shape[0]):
-                    self.W[i][j][k] = wVec.pop(0)
+                    self.W[i][j][k], wVec =  wVec[-1], wVec[:-1]
 
 if __name__ == "__main__":
     # Based on:

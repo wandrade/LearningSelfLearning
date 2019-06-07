@@ -435,7 +435,7 @@ def get_fitness(neuralnets, titlePostfix = ''): # why doesnt it free any memory?
     # get results and calculate fitness
     for result in window.results():
         # Change here for different fitness evaluations
-        fitness.append(result[2]) # simple 'make most points'
+        fitness.append(result[2] - result[1]) # value who makes most points and take less hits
     return fitness
 
 # @profile
