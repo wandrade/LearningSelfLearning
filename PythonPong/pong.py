@@ -337,8 +337,9 @@ class GameWindow(pyglet.window.Window):
         self.fps_display = FPSDisplay(self)
         self.fps_display.label.font_size = 10
         self.playArea = [self.width, self.height-100]
-        self.timeout = 3 # Time before closing window
+        self.timeout = 1 # Time before closing window
         self.closeWindow = False # Flag to know when to close window
+        
         # Key monitor
         self.keys = key.KeyStateHandler()
         self.push_handlers(self.keys)
@@ -406,23 +407,27 @@ class GameWindow(pyglet.window.Window):
     
     def addGame(self, typeP1, typeP2, color=(255,255,255,255), nn=None):
         self.games.append([0, 0, 0, MatchHandler(self,
-                                        typeP1,
-                                        typeP2,
+                                        str(typeP1),
+                                        str(typeP2),
                                         nn=nn,
-                                        color=color)])
+                                        color=tuple(color))])
     
         if typeP2 == 'NeuralNet':
             self.neuralNet = True
-    
+        
     def results(self):
-        return self.games
+        results = []
+        # separa22te games from results
+        for game in self.games:
+            results.append(list(game[:-1]))
+        return results
 
 def get_fitness(neuralnets, titlePostfix = ''): # why doesnt it free any memory? the scope is closed
     # Uncomment for debugging loop purpuses
     # return np.random.randint(-11,12, len(neuralnets))
     
     # Create game window
-    window = GameWindow(500, 500, 'SmartPong' + titlePostfix)
+    window = GameWindow(500, 500, 'SmartPong' + titlePostfix)    
     
     # Populate game window
     for nn in neuralnets:
@@ -431,23 +436,35 @@ def get_fitness(neuralnets, titlePostfix = ''): # why doesnt it free any memory?
                                                           np.random.randint(0,255),
                                                           np.random.randint(0,255),
                                                           100))
-    # Start game
-    pyglet.clock.schedule_interval(window.update, window.frame_rate)
+    # run pyglet widow
+    pyglet.clock.schedule_interval(window.update, float(window.frame_rate))
     pyglet.app.run()
+    # get results
+    results = window.results()
+    
+    # Close pyglet window
+    pyglet.clock.unschedule(window.update)
+    pyglet.app.exit()
     
     fitness = []
-    # get results and calculate fitness
-    for result in window.results():
+    # Calculate fitness
+    for result in results:
         # Change here for different fitness evaluations
         fitness.append(result[2] - result[1]) # value who makes most points and take less hits
     return fitness
 
-# @profile
+def plot(ax, development):
+    ax.plot(list(zip(*development))[0], color='green')
+    ax.plot(list(zip(*development))[1], color='yellow')
+    ax.plot(list(zip(*development))[2], color='red')
+    plt.draw()
+    plt.pause(0.001)
+
 def main():
     # NEAT algorithm (I think) to train(find) best neuralnet to beat pong
     topology = [6, 5, 1]
-    populationSize = 20
-    epochs = 300
+    populationSize = 22
+    epochs = 40
     mutationFactor = 0.3
     crossoverFactor = 0.1
     
@@ -459,11 +476,11 @@ def main():
     # For plotting purposes
     development = []
     fig, ax = plt.subplots()
+    fig.canvas.set_window_title('SmartPong') 
     ax.grid()
     ax.set_title('Fitness over time')
     ax.set_ylabel('Fitness')
     ax.set_xlabel('Epochs')
-    
     np.random.seed(1)
     
     # if not, initialize random population
@@ -481,10 +498,13 @@ def main():
             popWeights = pickle.load(fp)
         for i in range(len(popWeights)):
             population[i].set_weights(popWeights[i])
-        
     # Get fitness vector for first generation
     fitness = get_fitness(population, ': Initializing population')
     development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
+    
+    # Plot development
+    plot(ax, development)
+    
     
     # start genetic loop (diferential genetic algoritm)
     for epoch in range(epochs):
@@ -534,20 +554,16 @@ def main():
         development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
         
         # Plot development
-        ax.plot(list(zip(*development))[0], color='green')
-        ax.plot(list(zip(*development))[1], color='yellow')
-        ax.plot(list(zip(*development))[2], color='red')
-        plt.draw()
-        plt.pause(0.001)
+        plot(ax, development)
         
         # Save current results so program can continue from where it started
         with open('dump_history', 'wb') as fp:
             pickle.dump(development, fp)
         with open('dump_population', 'wb') as fp:
             pickle.dump([weight.get_weights() for weight in population], fp)
-        
+    
+    print('Training done')
     plt.show()
-    print(population)
 
 if __name__ == "__main__":
     main()
