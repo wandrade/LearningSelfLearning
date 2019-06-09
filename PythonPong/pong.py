@@ -172,9 +172,9 @@ class PlayerNN(GameObject):
         
         
         # For negative values go down, for positive go up. with treshold around 0 for stop
-        if action <= 0.40:
+        if action <= 0.48:
             self.velocity[1] = -self.maxSpeed
-        elif action >= 0.60:
+        elif action >= 0.52:
             self.velocity[1] = self.maxSpeed
         else:
             self.velocity[1] = 0
@@ -192,7 +192,7 @@ class Ball(GameObject):
         self.angle = 45
         self.velocity = [0, 0]
         super().__init__(window, position, visual=visual, velocity=self.velocity, batch=batch)
-        self.startDelay = 2
+        self.startDelay = 0.5
         self.startCount = 0
         self.movingModule = self.module
         self.startPosition = [self.window.playArea[0]//2 - self.boundingBox[0]//2, self.window.height//2 - self.boundingBox[1]//2 - 50]
@@ -505,11 +505,12 @@ def diferential_selection(population, fitness, topology):
 
 def simple_selection(population, fitness, topology, color):
     populationSize = len(population)
-    killRate = 0.30 #percentage of the weakest to be killed
+    killRate = 0.30 # percentage of the weakest to be killed
+    ReproductionRate = 0.15 # Only the strongest one reproduce
     mutationFactor = 0.01
     multiFactorMin = -1.5
     multiFactorMax = 1.5
-    intruderChance = 0.05
+    intruderChance = 0.01
     
     # Order population by fitness
     sortedIndexes = np.flip(np.argsort(fitness))
@@ -521,15 +522,17 @@ def simple_selection(population, fitness, topology, color):
     color = color[:int(populationSize*(1-killRate))]
     
     # Add random individual (for new genes in gene pool)
+    # Inserted at the top of the list to make sure it reproduces at least one
+    # This helps getting out of local minimums
     if np.random.random() <= intruderChance:
-        population.append(NeuralNet(topology))
-        color.append([np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255), 150])
+        population.insert(0, NeuralNet(topology))
+        color.insert(0, [np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255), 150])
     
     # Breed
     livePopSize = len(population)
     while(len(population) < populationSize):
         # Parent selection
-        idx = np.random.choice(list(range(livePopSize)), 2)
+        idx = np.random.choice(list(range(int(livePopSize*ReproductionRate))), 2)
         
         p1 = population[idx[0]].get_weights()
         p1 = np.concatenate((p1, np.array(color[idx[0]])))
@@ -603,7 +606,7 @@ def main():
     # NEAT algorithm (I think) to train(find) best neuralnet to beat pong
     topology = [6, 5, 1]
     populationSize = 140
-    epochs = 200
+    epochs = 400
     
     population = []
     fitness = np.array([])
