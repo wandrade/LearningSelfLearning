@@ -37,6 +37,14 @@ class GameObject:
     def update(self, dt):
         self.position[0] += self.velocity[0] * dt
         self.position[1] += self.velocity[1] * dt
+        
+        # Avoid weird behaviour when player gous out of screen on low fps
+        hTest = self.hit_border([0, 0, -1, 101])[1]
+        if hTest == 1:
+            self.position[1] = self.window.height - self.boundingBox[1] - 100
+        elif hTest == -1:
+            self.position[1] = 0
+        
         self.sprite.x = self.position[0]
         self.sprite.y = self.position[1]
         self.center = [self.position[0] + self.boundingBox[0]/2, self.position[1] + self.boundingBox[1]/2]
