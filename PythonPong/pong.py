@@ -170,9 +170,9 @@ class PlayerNN(GameObject):
         
         
         # For negative values go down, for positive go up. with treshold around 0 for stop
-        if action <= -0.10:
+        if action <= 0.40:
             self.velocity[1] = -self.maxSpeed
-        elif action >= 0.10:
+        elif action >= 0.60:
             self.velocity[1] = self.maxSpeed
         else:
             self.velocity[1] = 0
