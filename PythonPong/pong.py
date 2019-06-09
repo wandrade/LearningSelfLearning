@@ -10,6 +10,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 import pickle
 import os
+import time
+
 class GameObject:
     def __init__(self, window, position, visual=None, velocity=[0,0], batch=None):
         self.window     = window        # Pointer to a pyglet window object
@@ -476,7 +478,7 @@ def main():
     # NEAT algorithm (I think) to train(find) best neuralnet to beat pong
     topology = [6, 5, 1]
     populationSize = 70
-    epochs = 200
+    epochs = 50
     mutationFactor = 0.2
     crossoverFactor = 0.2
     
@@ -495,6 +497,9 @@ def main():
     ax.set_xlabel('Epochs')
     np.random.seed(1)
     
+    # Time keeping variables
+    t0 = time.time()
+    tVec = []
     # if not, initialize random population
     print('Initializing neural networks: population of', populationSize)
     for i in range(populationSize):
@@ -514,19 +519,18 @@ def main():
     fitness = get_fitness(population, ': Initializing population')
     development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
     
-    # Print a few succecful samples for later analisys:
-    for i in range(populationSize):
-        if fitness[i] >= 10:
-            print(fitness[i], population[i].get_weights)
-            print('~ '* 15)
-    
     # Plot development
     plot(ax, development)
-    
-    
+    tVec.append(time.time()-t0)
+    print('Population initialized in %.1f seconds' % tVec[-1])
+    print('Training started:')
     # start genetic loop (diferential genetic algoritm)
     for epoch in range(epochs):
-        
+        t0 = time.time()
+        ETAs = sum(tVec)/len(tVec)*(epochs-epoch)
+        ETAm = int(ETAs/60.0)
+        ETAs = ETAs - 60*ETAm
+        print('Epoch %i/%i: ETA %im %is'% (epoch+1, epochs, ETAm, ETAs))
         # Build new population of neuralnetworks
         for individualIndex in range(populationSize):
             # get weigths of individual
@@ -583,9 +587,18 @@ def main():
             pickle.dump(development, fp)
         with open('dump_population', 'wb') as fp:
             pickle.dump([weight.get_weights() for weight in population], fp)
-    
-    for i in range(populationSize):
-        print(fitness[i], '-', population[i].get_weights())
+            
+        # Print statistics
+        tVec.append(time.time()-t0)
+        print('Elapsed time: %is' % tVec[-1])
+        bestIndex = 0
+        for i in range(populationSize):
+            if fitness[i] >= fitness[bestIndex]:
+                bestIndex = i
+        print('Best player fitness: ', fitness[bestIndex])
+        print(population[bestIndex].get_weights())
+        print('~ ~ '*20)
+        
     print('Training done')
     plt.show()
 
