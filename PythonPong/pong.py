@@ -435,9 +435,77 @@ class GameWindow(pyglet.window.Window):
             results.append(list(game[:-1]))
         return results
 
+def plot(ax, development):
+    plt.cla()
+    ax.plot(list(zip(*development))[0], color='green')
+    ax.plot(list(zip(*development))[1], color='yellow')
+    ax.plot(list(zip(*development))[2], color='red')
+    ax.grid()
+    ax.set_title('Fitness over time')
+    ax.set_ylabel('Fitness')
+    ax.set_xlabel('Epochs')
+    plt.draw()
+    plt.pause(0.001)
+
+def diferential_selection(population, fitness, topology):
+    populationSize = len(population)
+    mutationFactor = 0.2
+    crossoverFactor = 0.2
+    populationCandidates = []
+    candidatesFitness = np.array([])
+    
+    for i in range(populationSize):
+        populationCandidates.append(NeuralNet(topology)) # Just to initialize neuralnet, weigths will be replaced later
+    
+    # Build new population of neuralnetworks
+    for individualIndex in range(populationSize):
+        # get weigths of individual
+        individual = population[individualIndex].get_weights()
+        
+        # Create new individual based on others for DNA donation
+        # Get 3 random individuals (excluding current) for diferential algoritm
+        candidatesIndexList = list(range(populationSize))
+        candidatesIndexList.remove(individualIndex)
+        
+        # When choosing, gives higher probabilities to use good individuals
+        # Calculate propability based on fitness
+        p = [mapVal(x, -11.0, 11.0, 0.2, 0.8) for x in fitness]
+        chosen = np.random.choice(candidatesIndexList, 3, p)
+        
+        # Get diference of the two first one:
+        diff = population[chosen[0]].get_weights() - population[chosen[1]].get_weights()
+        
+        # mutationFactor*diff + third random vector
+        donor = mutationFactor*diff + population[chosen[2]].get_weights()
+        
+        # Crossover of donor and individual:
+        # Replace the individual gene for the donor randomly
+        offspring = np.array([])
+        for gene in range(len(donor)):
+            if np.random.random() <= crossoverFactor:
+                offspring = np.append(offspring, donor[gene])
+            else:
+                offspring = np.append(offspring, individual[gene])
+                
+        # Add offspring gene code to candidates
+        populationCandidates[individualIndex].set_weights(offspring)
+        
+    # Evaluate fitness of offspring and elders (to make sure it wasnt luck)
+    candidatesFitness = get_fitness(populationCandidates + population)
+    
+    fitness = (np.array(candidatesFitness[populationSize:]) + np.array(fitness))/2 # mean of previous value and current (reduce random fluctuations whilst still valuing the mos resent result over the others)
+    candidatesFitness = candidatesFitness[:populationSize]
+    
+    # Replace individuals that performed worse than theyr offsprring (greedy method)
+    for candidateIndex in range(populationSize):
+        if candidatesFitness[candidateIndex] > fitness[candidateIndex]:
+            population[candidateIndex] = populationCandidates[candidateIndex]
+            fitness[candidateIndex] = candidatesFitness[candidateIndex]
+    return population, fitness
+
 def get_fitness(neuralnets, titlePostfix = ''): # why doesnt it free any memory? the scope is closed
     # Uncomment for debugging loop purpuses
-    # return [abs(sum(n.get_weights()))/1000 for n in neuralnets]
+    # return np.array([abs(sum(n.get_weights()))/1000 for n in neuralnets])
     # return np.random.randint(-11,11,len(neuralnets))
     
     # Create game window
@@ -453,6 +521,7 @@ def get_fitness(neuralnets, titlePostfix = ''): # why doesnt it free any memory?
     # run pyglet widow
     pyglet.clock.schedule_interval(window.update, float(window.frame_rate))
     pyglet.app.run()
+    
     # get results
     results = window.results()
     
@@ -467,31 +536,15 @@ def get_fitness(neuralnets, titlePostfix = ''): # why doesnt it free any memory?
         fitness.append(result[2] - result[1]) # value who makes most points and take less hits
     return np.array(fitness)
 
-def plot(ax, development):
-    plt.cla()
-    ax.plot(list(zip(*development))[0], color='green')
-    ax.plot(list(zip(*development))[1], color='yellow')
-    ax.plot(list(zip(*development))[2], color='red')
-    ax.grid()
-    ax.set_title('Fitness over time')
-    ax.set_ylabel('Fitness')
-    ax.set_xlabel('Epochs')
-    plt.draw()
-    plt.pause(0.001)
-
 def main():
     np.set_printoptions(10, linewidth = 92, sign=' ', floatmode='fixed')
     # NEAT algorithm (I think) to train(find) best neuralnet to beat pong
     topology = [6, 5, 1]
     populationSize = 70
-    epochs = 50
-    mutationFactor = 0.2
-    crossoverFactor = 0.2
+    epochs = 100
     
     population = []
-    populationCandidates = []
     fitness = np.array([])
-    candidatesFitness = np.array([])
     
     # For plotting purposes
     development = []
@@ -508,7 +561,6 @@ def main():
     print('Initializing neural networks: population of', populationSize)
     for i in range(populationSize):
         population.append(NeuralNet(topology))
-        populationCandidates.append(NeuralNet(topology)) # Just to initialize neuralnet, weigths will be replaced later
     
     # Check if there are any dump files, if there are load from them
     if os.path.isfile('./dump_history') and os.path.isfile('./dump_population'):
@@ -519,6 +571,7 @@ def main():
             popWeights = pickle.load(fp)
         for i in range(len(popWeights)):
             population[i].set_weights(popWeights[i])
+    
     # Get fitness vector for first generation
     fitness = get_fitness(population, ': Initializing population')
     development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
@@ -535,51 +588,11 @@ def main():
         ETAm = int(ETAs/60.0)
         ETAs = ETAs - 60*ETAm
         print('Epoch %i/%i: ETA %im %is'% (epoch+1, epochs, ETAm, ETAs))
-        # Build new population of neuralnetworks
-        for individualIndex in range(populationSize):
-            # get weigths of individual
-            individual = population[individualIndex].get_weights()
-            
-            # Create new individual based on others for DNA donation
-            # Get 3 random individuals (excluding current) for diferential algoritm
-            candidatesIndexList = list(range(populationSize))
-            candidatesIndexList.remove(individualIndex)
-            
-            # When choosing, gives higher probabilities to use good individuals
-            # Calculate propability based on fitness
-            p = [mapVal(x, -11.0, 11.0, 0.2, 0.8) for x in fitness]
-            chosen = np.random.choice(candidatesIndexList, 3, p)
-            
-            # Get diference of the two first one:
-            diff = population[chosen[0]].get_weights() - population[chosen[1]].get_weights()
-            
-            # mutationFactor*diff + third random vector
-            donor = mutationFactor*diff + population[chosen[2]].get_weights()
-            
-            # Crossover of donor and individual:
-            # Replace the individual gene for the donor randomly
-            offspring = np.array([])
-            for gene in range(len(donor)):
-                if np.random.random() <= crossoverFactor:
-                    offspring = np.append(offspring, donor[gene])
-                else:
-                    offspring = np.append(offspring, individual[gene])
-            # Add offspring gene code to candidates
-            populationCandidates[individualIndex].set_weights(offspring)
         
-        # Evaluate fitness of offspring and elders (to make sure it wasnt luck)
-        candidatesFitness = get_fitness(populationCandidates + population
-                                        , ': epoch %i/%i' % (epoch, epochs-1))
+        # Genetic algoritm
+        population, fitness = diferential_selection(population, fitness, topology)
         
-        fitness = (np.array(candidatesFitness[populationSize:]) + np.array(fitness))/2 # mean of previous value and current (reduce random fluctuations whilst still valuing the mos resent result over the others)
-        candidatesFitness = candidatesFitness[:populationSize]
-        
-        # Replace individuals that performed worse than theyr offsprring (greedy method)
-        for candidateIndex in range(populationSize):
-            if candidatesFitness[candidateIndex] > fitness[candidateIndex]:
-                population[candidateIndex] = populationCandidates[candidateIndex]
-                fitness[candidateIndex] = candidatesFitness[candidateIndex]
-        
+        print(fitness)
         # Record of fitness over time
         development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
         
