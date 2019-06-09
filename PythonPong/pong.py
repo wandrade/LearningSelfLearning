@@ -503,9 +503,9 @@ def diferential_selection(population, fitness, topology):
             fitness[candidateIndex] = candidatesFitness[candidateIndex]
     return population, fitness
 
-def simple_selection(population, fitness, topology):
+def simple_selection(population, fitness, topology, color):
     populationSize = len(population)
-    killRate = 0.50 #percentage of the weakest to be killed
+    killRate = 0.30 #percentage of the weakest to be killed
     mutationFactor = 0.01
     multiFactorMin = -1.5
     multiFactorMax = 1.5
@@ -514,22 +514,27 @@ def simple_selection(population, fitness, topology):
     # Order population by fitness
     sortedIndexes = np.flip(np.argsort(fitness))
     population[:] = [population[i] for i in sortedIndexes]
+    
     # Kill weakest individuals
     population = population[:int(populationSize*killRate)]
-    fitness = fitness[:int(populationSize*killRate)]
+    fitness = fitness[:int(populationSize*(1-killRate))]
+    color = color[:int(populationSize*(1-killRate))]
     
-    # Add random individual (for new genes)
+    # Add random individual (for new genes in gene pool)
     if np.random.random() <= intruderChance:
         population.append(NeuralNet(topology))
+        color.append([np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255), 150])
     
-    # breed
+    # Breed
     livePopSize = len(population)
     while(len(population) < populationSize):
         # Parent selection
         idx = np.random.choice(list(range(livePopSize)), 2)
         
         p1 = population[idx[0]].get_weights()
+        p1 = np.concatenate((p1, np.array(color[idx[0]])))
         p2 = population[idx[1]].get_weights()
+        p2 = np.concatenate((p2, np.array(color[idx[1]])))
         child = []
         
         # Crossover
@@ -541,7 +546,7 @@ def simple_selection(population, fitness, topology):
         
         
         # Mutation
-        for gene in range(len(child)):
+        for gene in range(len(child)-4): # Dont mutate color
             if np.random.random() <= mutationFactor:
                 # Generate multiplication factor 
                 scale = multiFactorMin + (np.random.random() * (multiFactorMax - multiFactorMin))
@@ -550,7 +555,9 @@ def simple_selection(population, fitness, topology):
 
         # Add child to population pool
         population.append(NeuralNet(topology))
-        population[-1].set_weights(child)
+        population[-1].set_weights(child[:-4])
+        color.append(child[-4:])
+    
     # Evaluate population
     fitness = get_fitness(population)
     return population, fitness
@@ -560,7 +567,7 @@ def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free
     # Generate color randomly if not specified
     colorVec = []
     for i in range(len(neuralnets)):
-        colorVec.append((np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255), 100))
+        colorVec.append((np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255), 150))
     
     # Uncomment for debugging loop purpuses
     # return np.array([abs(sum(n.get_weights())) for n in neuralnets])
@@ -595,8 +602,8 @@ def main():
     np.set_printoptions(10, linewidth = 92, sign=' ', floatmode='fixed')
     # NEAT algorithm (I think) to train(find) best neuralnet to beat pong
     topology = [6, 5, 1]
-    populationSize = 20
-    epochs = 100
+    populationSize = 140
+    epochs = 200
     
     population = []
     fitness = np.array([])
@@ -607,7 +614,7 @@ def main():
     fig.canvas.set_window_title('SmartPong') 
     
     # Random seed
-    np.random.seed(2)
+    np.random.seed(1)
     
     # Time keeping variables
     t0 = time.time()
@@ -616,6 +623,11 @@ def main():
     print('Initializing neural networks: population of', populationSize)
     for i in range(populationSize):
         population.append(NeuralNet(topology))
+    
+    # Create color vector for neuralnetworks
+    colorVec = []
+    for i in range(len(population)):
+        colorVec.append([np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255), 150])
     
     # Check if there are any dump files, if there are load from them
     if os.path.isfile('./dump_history') and os.path.isfile('./dump_population'):
@@ -646,7 +658,7 @@ def main():
         
         # Genetic algoritm
         # population, fitness = diferential_selection(population, fitness, topology)
-        population, fitness = simple_selection(population, fitness, topology)
+        population, fitness = simple_selection(population, fitness, topology, colorVec)
 
         # Record of fitness over time
         development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
