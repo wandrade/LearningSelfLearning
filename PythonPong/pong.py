@@ -350,7 +350,7 @@ class GameWindow(pyglet.window.Window):
         self.fps_display = FPSDisplay(self)
         self.fps_display.label.font_size = 10
         self.playArea = [self.width, self.height-100]
-        self.timeout = 1 # Time before closing window
+        self.timeout = 0.5 # Time before closing window
         self.closeWindow = False # Flag to know when to close window
         
         # Key monitor
@@ -503,21 +503,76 @@ def diferential_selection(population, fitness, topology):
             fitness[candidateIndex] = candidatesFitness[candidateIndex]
     return population, fitness
 
-def get_fitness(neuralnets, titlePostfix = ''): # why doesnt it free any memory? the scope is closed
+def simple_selection(population, fitness, topology):
+    populationSize = len(population)
+    killRate = 0.50 #percentage of the weakest to be killed
+    mutationFactor = 0.01
+    multiFactorMin = -1.5
+    multiFactorMax = 1.5
+    intruderChance = 0.05
+    
+    # Order population by fitness
+    sortedIndexes = np.flip(np.argsort(fitness))
+    population[:] = [population[i] for i in sortedIndexes]
+    # Kill weakest individuals
+    population = population[:int(populationSize*killRate)]
+    fitness = fitness[:int(populationSize*killRate)]
+    
+    # Add random individual (for new genes)
+    if np.random.random() <= intruderChance:
+        population.append(NeuralNet(topology))
+    
+    # breed
+    livePopSize = len(population)
+    while(len(population) < populationSize):
+        # Parent selection
+        idx = np.random.choice(list(range(livePopSize)), 2)
+        
+        p1 = population[idx[0]].get_weights()
+        p2 = population[idx[1]].get_weights()
+        child = []
+        
+        # Crossover
+        for gene in range(len(p1)):
+            if np.random.random() < 0.5:
+                child.append(p1[gene])
+            else:
+                child.append(p2[gene])
+        
+        
+        # Mutation
+        for gene in range(len(child)):
+            if np.random.random() <= mutationFactor:
+                # Generate multiplication factor 
+                scale = multiFactorMin + (np.random.random() * (multiFactorMax - multiFactorMin))
+                # Scale gene by random factor
+                child[gene] *= scale
+
+        # Add child to population pool
+        population.append(NeuralNet(topology))
+        population[-1].set_weights(child)
+    # Evaluate population
+    fitness = get_fitness(population)
+    return population, fitness
+
+
+def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free any memory? the scope is closed
+    # Generate color randomly if not specified
+    colorVec = []
+    for i in range(len(neuralnets)):
+        colorVec.append((np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255), 100))
+    
     # Uncomment for debugging loop purpuses
-    # return np.array([abs(sum(n.get_weights()))/1000 for n in neuralnets])
+    # return np.array([abs(sum(n.get_weights())) for n in neuralnets])
     # return np.random.randint(-11,11,len(neuralnets))
     
     # Create game window
     window = GameWindow(500, 500, 'SmartPong' + titlePostfix)    
     
     # Populate game window
-    for nn in neuralnets:
+    for i in range(len(neuralnets)):
         # Add games to window
-        window.addGame('Auto', 'NeuralNet', nn=nn, color=(np.random.randint(0,255),
-                                                          np.random.randint(0,255),
-                                                          np.random.randint(0,255),
-                                                          100))
+        window.addGame('Auto', 'NeuralNet', nn=neuralnets[i], color=colorVec[i])
     # run pyglet widow
     pyglet.clock.schedule_interval(window.update, float(window.frame_rate))
     pyglet.app.run()
@@ -540,7 +595,7 @@ def main():
     np.set_printoptions(10, linewidth = 92, sign=' ', floatmode='fixed')
     # NEAT algorithm (I think) to train(find) best neuralnet to beat pong
     topology = [6, 5, 1]
-    populationSize = 70
+    populationSize = 20
     epochs = 100
     
     population = []
@@ -552,7 +607,7 @@ def main():
     fig.canvas.set_window_title('SmartPong') 
     
     # Random seed
-    np.random.seed(1)
+    np.random.seed(2)
     
     # Time keeping variables
     t0 = time.time()
@@ -590,9 +645,9 @@ def main():
         print('Epoch %i/%i: ETA %im %is'% (epoch+1, epochs, ETAm, ETAs))
         
         # Genetic algoritm
-        population, fitness = diferential_selection(population, fitness, topology)
-        
-        print(fitness)
+        # population, fitness = diferential_selection(population, fitness, topology)
+        population, fitness = simple_selection(population, fitness, topology)
+
         # Record of fitness over time
         development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
         
