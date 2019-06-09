@@ -143,12 +143,13 @@ class PlayerManual(GameObject):
         super().update(dt)
 
 class PlayerNN(GameObject):
-    def __init__(self, window, position, neuralNet, ballSpeed, visual=None, velocity=[0,0], batch=None):
+    def __init__(self, window, position, neuralNet, ballSpeed, enemyPlayer, visual=None, velocity=[0,0], batch=None):
         super().__init__(window, position, visual=visual, velocity=velocity, batch=batch)
         self.points = 0
         self.maxSpeed = velocity[1]
         self.neuralNet = neuralNet
         self.ballSpeedModule = ballSpeed
+        self.enemyPlayer = enemyPlayer
         
     def score(self):
         self.points += 1
@@ -156,8 +157,8 @@ class PlayerNN(GameObject):
     def update(self, dt, ball):
         # Build normalized state vector
         state = [[
-            self.center[0]/self.window.playArea[0],
             self.center[1]/self.window.playArea[1],
+            self.enemyPlayer.center[1]/self.window.playArea[1],
             ball.center[0]/self.window.playArea[0],
             ball.center[1]/self.window.playArea[1],
             ball.velocity[0]/self.ballSpeedModule,
@@ -167,10 +168,12 @@ class PlayerNN(GameObject):
         # Eval neuralnet
         action = self.neuralNet.forward_propagation(state)
         
-        if action < 0.45:
-            self.velocity[1] = self.maxSpeed
-        elif action > 0.55:
+        
+        # For negative values go down, for positive go up. with treshold around 0 for stop
+        if action <= -0.10:
             self.velocity[1] = -self.maxSpeed
+        elif action >= 0.10:
+            self.velocity[1] = self.maxSpeed
         else:
             self.velocity[1] = 0
         borderHit = self.hit_border([0, self.window.width - self.window.playArea[0], 0, self.window.height - self.window.playArea[1]])
@@ -227,14 +230,14 @@ class Ball(GameObject):
                 # deflect from -plate height and plate height to -N and N
                 D = self.distanceVec(p1)[1]
                 PlateSize = p1.boundingBox[1]
-                angle = map(D, -PlateSize/2, PlateSize/2, -N, N)
+                angle = mapVal(D, -PlateSize/2, PlateSize/2, -N, N)
                 self.set_cartesian_vel(self.module, angle)
                 
             elif self.rectangle_collision(p2):
                 D = self.distanceVec(p2)[1]
                 PlateSize = p1.boundingBox[1]
                 # Same thing other direction
-                angle = map(D, -PlateSize/2, PlateSize/2, 180-N, 180+N)
+                angle = mapVal(D, -PlateSize/2, PlateSize/2, 180-N, 180+N)
                 self.set_cartesian_vel(self.module, angle)
         # Start position and velocity
         else:
@@ -288,7 +291,7 @@ class MatchHandler:
         elif p2 == 'Manual':
             self.playerTwo = PlayerManual(self.window, [self.window.playArea[0]-8-15, self.window.playArea[1]//2], player_image, [0, self.playersSpeed], batch=self.actors)
         elif p2 == 'NeuralNet':
-            self.playerTwo = PlayerNN(self.window, [self.window.playArea[0]-8-15, self.window.playArea[1]//2], self.neuralNet, self.ballSpeedModule, player_image, [0, self.playersSpeed], batch=self.actors)
+            self.playerTwo = PlayerNN(self.window, [self.window.playArea[0]-8-15, self.window.playArea[1]//2], self.neuralNet, self.ballSpeedModule, self.playerOne, player_image, [0, self.playersSpeed], batch=self.actors)
         
         self.updateScoreBoard()
         # Create ball
@@ -297,7 +300,7 @@ class MatchHandler:
         # If neuralnetwork, acomodate for drawing on window
         if nn is not None:
             # generate image
-            netDiagram = nn.draw_diagram(inputLabels = ['pos_X', 'pos_Y', 'ball_X', 'ball_Y', 'ball_X\'', 'ball_Y\''], outputLabels=['Motion'])
+            netDiagram = nn.draw_diagram(inputLabels = ['Self_Y', 'P1_Y', 'Ball_X', 'Ball_Y', 'Ball_X\'', 'Ball_Y\'', 'Bias'], outputLabels=['Motion'])
             width = netDiagram.width
             height  = netDiagram.height
             aspectRatio = width/height
@@ -432,7 +435,8 @@ class GameWindow(pyglet.window.Window):
 
 def get_fitness(neuralnets, titlePostfix = ''): # why doesnt it free any memory? the scope is closed
     # Uncomment for debugging loop purpuses
-    # return np.random.randint(-11,12, len(neuralnets))
+    # return [abs(sum(n.get_weights()))/1000 for n in neuralnets]
+    # return np.random.randint(-11,11,len(neuralnets))
     
     # Create game window
     window = GameWindow(500, 500, 'SmartPong' + titlePostfix)    
@@ -471,10 +475,10 @@ def plot(ax, development):
 def main():
     # NEAT algorithm (I think) to train(find) best neuralnet to beat pong
     topology = [6, 5, 1]
-    populationSize = 22
-    epochs = 40
-    mutationFactor = 0.3
-    crossoverFactor = 0.1
+    populationSize = 70
+    epochs = 200
+    mutationFactor = 0.2
+    crossoverFactor = 0.2
     
     population = []
     populationCandidates = []
@@ -492,7 +496,7 @@ def main():
     np.random.seed(1)
     
     # if not, initialize random population
-    print('Initializing neural networks')
+    print('Initializing neural networks: population of', populationSize)
     for i in range(populationSize):
         population.append(NeuralNet(topology))
         populationCandidates.append(NeuralNet(topology)) # Just to initialize neuralnet, weigths will be replaced later
@@ -510,6 +514,12 @@ def main():
     fitness = get_fitness(population, ': Initializing population')
     development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
     
+    # Print a few succecful samples for later analisys:
+    for i in range(populationSize):
+        if fitness[i] >= 10:
+            print(fitness[i], population[i].get_weights)
+            print('~ '* 15)
+    
     # Plot development
     plot(ax, development)
     
@@ -526,7 +536,11 @@ def main():
             # Get 3 random individuals (excluding current) for diferential algoritm
             candidatesIndexList = list(range(populationSize))
             candidatesIndexList.remove(individualIndex)
-            chosen = np.random.choice(candidatesIndexList, 3)
+            
+            # When choosing, gives higher probabilities to use good individuals
+            # Calculate propability based on fitness
+            p = [mapVal(x, -11.0, 11.0, 0.2, 0.8) for x in fitness]
+            chosen = np.random.choice(candidatesIndexList, 3, p)
             
             # Get diference of the two first one:
             diff = population[chosen[0]].get_weights() - population[chosen[1]].get_weights()
@@ -549,7 +563,7 @@ def main():
         candidatesFitness = get_fitness(populationCandidates + population
                                         , ': epoch %i/%i' % (epoch, epochs-1))
         
-        fitness = candidatesFitness[populationSize:]
+        fitness = (candidatesFitness[populationSize:] + fitness)/2 # mean of previous value and current (reduce random fluctuations whilst still valuing the mos resent result over the others)
         candidatesFitness = candidatesFitness[:populationSize]
         
         # Replace individuals that performed worse than theyr offsprring (greedy method)
@@ -570,6 +584,8 @@ def main():
         with open('dump_population', 'wb') as fp:
             pickle.dump([weight.get_weights() for weight in population], fp)
     
+    for i in range(populationSize):
+        print(fitness[i], '-', population[i].get_weights())
     print('Training done')
     plt.show()
 
