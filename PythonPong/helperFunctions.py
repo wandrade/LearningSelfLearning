@@ -9,7 +9,7 @@ def time_usage(func):
         return result
     return wrapper
 
-def map(x, in_min, in_max, out_min, out_max):
+def mapVal(x, in_min, in_max, out_min, out_max):
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
 
 # @time_usage
