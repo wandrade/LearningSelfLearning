@@ -465,16 +465,22 @@ def get_fitness(neuralnets, titlePostfix = ''): # why doesnt it free any memory?
     for result in results:
         # Change here for different fitness evaluations
         fitness.append(result[2] - result[1]) # value who makes most points and take less hits
-    return fitness
+    return np.array(fitness)
 
 def plot(ax, development):
+    plt.cla()
     ax.plot(list(zip(*development))[0], color='green')
     ax.plot(list(zip(*development))[1], color='yellow')
     ax.plot(list(zip(*development))[2], color='red')
+    ax.grid()
+    ax.set_title('Fitness over time')
+    ax.set_ylabel('Fitness')
+    ax.set_xlabel('Epochs')
     plt.draw()
     plt.pause(0.001)
 
 def main():
+    np.set_printoptions(10, linewidth = 92, sign=' ', floatmode='fixed')
     # NEAT algorithm (I think) to train(find) best neuralnet to beat pong
     topology = [6, 5, 1]
     populationSize = 70
@@ -484,17 +490,15 @@ def main():
     
     population = []
     populationCandidates = []
-    fitness = []
-    candidatesFitness = []
+    fitness = np.array([])
+    candidatesFitness = np.array([])
     
     # For plotting purposes
     development = []
     fig, ax = plt.subplots()
     fig.canvas.set_window_title('SmartPong') 
-    ax.grid()
-    ax.set_title('Fitness over time')
-    ax.set_ylabel('Fitness')
-    ax.set_xlabel('Epochs')
+    
+    # Random seed
     np.random.seed(1)
     
     # Time keeping variables
@@ -567,7 +571,7 @@ def main():
         candidatesFitness = get_fitness(populationCandidates + population
                                         , ': epoch %i/%i' % (epoch, epochs-1))
         
-        fitness = (candidatesFitness[populationSize:] + fitness)/2 # mean of previous value and current (reduce random fluctuations whilst still valuing the mos resent result over the others)
+        fitness = (np.array(candidatesFitness[populationSize:]) + np.array(fitness))/2 # mean of previous value and current (reduce random fluctuations whilst still valuing the mos resent result over the others)
         candidatesFitness = candidatesFitness[:populationSize]
         
         # Replace individuals that performed worse than theyr offsprring (greedy method)
@@ -597,7 +601,7 @@ def main():
                 bestIndex = i
         print('Best player fitness: ', fitness[bestIndex])
         print(population[bestIndex].get_weights())
-        print('~ ~ '*20)
+        print('~ '*46)
         
     print('Training done')
     plt.show()
