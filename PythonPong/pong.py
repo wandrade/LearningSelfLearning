@@ -636,16 +636,24 @@ def main():
     for i in range(len(population)):
         colorVec.append([np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255), 150])
     
-    # Check if there are any dump files, if there are load from them
-    if os.path.isfile('./dump_history') and os.path.isfile('./dump_population'):
-        print('Loading population')
+    # Check if there are any dump files, if there are load from them (can delete each portion separatly)
+    if os.path.isfile('./dump_history'):
+        print('Loading population history')
         with open('dump_history', 'rb') as fp:
             development = pickle.load(fp)
+    
+    if os.path.isfile('./dump_color'):
+        print('Loading population color')
+        with open('dump_color', 'rb') as fp:
+            colorVec = pickle.load(fp)
+            
+    if os.path.isfile('./dump_population'):
+        print('Loading population memory')
         with open('dump_population', 'rb') as fp:
             popWeights = pickle.load(fp)
         for i in range(len(popWeights)):
             population[i].set_weights(popWeights[i])
-    
+
     # Get fitness vector for first generation
     fitness = get_fitness(population, ': Initializing population')
     development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
@@ -678,6 +686,8 @@ def main():
             pickle.dump(development, fp)
         with open('dump_population', 'wb') as fp:
             pickle.dump([weight.get_weights() for weight in population], fp)
+        with open('dump_color', 'wb') as fp:
+            pickle.dump(colorVec, fp)
             
         # Print statistics
         tVec.append(time.time()-t0)
