@@ -507,10 +507,10 @@ def simple_selection(population, fitness, topology, color):
     populationSize = len(population)
     killRate = 0.30 # percentage of the weakest to be killed
     ReproductionRate = 0.15 # Only the strongest one reproduce
-    mutationFactor = 0.01
-    multiFactorMin = -1.5
-    multiFactorMax = 1.5
-    intruderChance = 0.01
+    mutationFactor = 0.005
+    multiFactorMin = -1.2
+    multiFactorMax = 1.2
+    intruderChance = 0.005
     
     # Order population by fitness
     sortedIndexes = np.flip(np.argsort(fitness))
@@ -535,31 +535,35 @@ def simple_selection(population, fitness, topology, color):
         idx = np.random.choice(list(range(int(livePopSize*ReproductionRate))), 2)
         
         p1 = population[idx[0]].get_weights()
-        p1 = np.concatenate((p1, np.array(color[idx[0]])))
         p2 = population[idx[1]].get_weights()
-        p2 = np.concatenate((p2, np.array(color[idx[1]])))
-        child = []
         
         # Crossover
-        for gene in range(len(p1)):
-            if np.random.random() < 0.5:
-                child.append(p1[gene])
-            else:
-                child.append(p2[gene])
+        crossOverPoint = np.random.randint(0,len(p1)-1) # select crossover point
+        child = np.concatenate((p1[:crossOverPoint], p2[crossOverPoint:]))
         
+        # Merge parents colors
+        childColor = [sum(hue)/2 for hue in zip(*[color[idx[0]], color[idx[1]]])]
         
         # Mutation
-        for gene in range(len(child)-4): # Dont mutate color
+        for gene in range(len(child)):
             if np.random.random() <= mutationFactor:
                 # Generate multiplication factor 
                 scale = multiFactorMin + (np.random.random() * (multiFactorMax - multiFactorMin))
                 # Scale gene by random factor
                 child[gene] *= scale
+                # Mutate color (sligtly change color based on same scale that changed gene)
+                cIdx = np.random.randint(0,3)
+                childColor[cIdx] += scale*childColor[cIdx]/2
+                if(childColor[cIdx]) < 0:
+                    childColor[cIdx] = 0
+                elif(childColor[cIdx] > 255):
+                    childColor[cIdx] = 255
+                 
 
         # Add child to population pool
         population.append(NeuralNet(topology))
-        population[-1].set_weights(child[:-4])
-        color.append(child[-4:])
+        population[-1].set_weights(child)
+        color.append(childColor)
     
     # Evaluate population
     fitness = get_fitness(population)
@@ -567,14 +571,14 @@ def simple_selection(population, fitness, topology, color):
 
 
 def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free any memory? the scope is closed
+    # Uncomment for debugging loop purpuses
+    # return np.array([abs(sum(n.get_weights())) for n in neuralnets])
+    # return np.random.randint(-11,11,len(neuralnets))
+    
     # Generate color randomly if not specified
     colorVec = []
     for i in range(len(neuralnets)):
         colorVec.append((np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255), 150))
-    
-    # Uncomment for debugging loop purpuses
-    # return np.array([abs(sum(n.get_weights())) for n in neuralnets])
-    # return np.random.randint(-11,11,len(neuralnets))
     
     # Create game window
     window = GameWindow(500, 500, 'SmartPong' + titlePostfix)    
