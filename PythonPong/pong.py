@@ -254,7 +254,7 @@ class Ball(GameObject):
                 self.rolling = True
                 
                 # Random shooting angle between 80 and -80
-                self.set_cartesian_vel(300, np.random.randint(-80, 80))
+                self.set_cartesian_vel(self.module, np.random.randint(-80, 80))
                 # Random direction
                 if np.random.random() >= 0.5:
                     self.velocity[0] *= -1
@@ -547,7 +547,7 @@ def simple_selection(population, fitness, topology, color):
         child = np.concatenate((p1[:crossOverPoint], p2[crossOverPoint:]))
         
         # Merge parents colors
-        childColor = [sum(hue)/2 for hue in zip(*[color[idx[0]], color[idx[1]]])]
+        childColor = [int(hue[0]*(1 - crossOverFactor) + hue[1]*crossOverFactor) for hue in zip(*[color[idx[0]], color[idx[1]]])]
         
         # Mutation
         for gene in range(len(child)):
@@ -571,8 +571,8 @@ def simple_selection(population, fitness, topology, color):
         color.append(childColor)
     
     # Evaluate population
-    fitness = get_fitness(population)
-    return population, fitness
+    fitness = get_fitness(population, color=color)
+    return population, fitness, color
 
 
 def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free any memory? the scope is closed
@@ -581,9 +581,10 @@ def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free
     # return np.random.randint(-11,11,len(neuralnets))
     
     # Generate color randomly if not specified
-    colorVec = []
-    for i in range(len(neuralnets)):
-        colorVec.append((np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255), 150))
+    if color is None:
+        color = []
+        for i in range(len(neuralnets)):
+            color.append((np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255), 150))
     
     # Create game window
     window = GameWindow(500, 500, 'SmartPong' + titlePostfix)    
@@ -591,7 +592,8 @@ def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free
     # Populate game window
     for i in range(len(neuralnets)):
         # Add games to window
-        window.addGame('Auto', 'NeuralNet', nn=neuralnets[i], color=colorVec[i])
+        window.addGame('Auto', 'NeuralNet', nn=neuralnets[i], color=color[i])
+    
     # run pyglet widow
     pyglet.clock.schedule_interval(window.update, float(window.frame_rate))
     pyglet.app.run()
@@ -631,6 +633,7 @@ def main():
     # Time keeping variables
     t0 = time.time()
     tVec = []
+    
     # if not, initialize random population
     print('Initializing neural networks: population of', populationSize)
     for i in range(populationSize):
@@ -659,8 +662,9 @@ def main():
         for i in range(len(popWeights)):
             population[i].set_weights(popWeights[i])
 
+
     # Get fitness vector for first generation
-    fitness = get_fitness(population, ': Initializing population')
+    fitness = get_fitness(population, ': Initializing population', color=colorVec)
     development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
     
     # Plot development
@@ -678,7 +682,7 @@ def main():
         
         # Genetic algoritm
         # population, fitness = diferential_selection(population, fitness, topology)
-        population, fitness = simple_selection(population, fitness, topology, colorVec)
+        population, fitness, colorVec = simple_selection(population, fitness, topology, colorVec)
 
         # Record of fitness over time
         development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
@@ -693,7 +697,7 @@ def main():
             pickle.dump([weight.get_weights() for weight in population], fp)
         with open('dump_color', 'wb') as fp:
             pickle.dump(colorVec, fp)
-            
+        
         # Print statistics
         tVec.append(time.time()-t0)
         print('Elapsed time: %is' % tVec[-1])
