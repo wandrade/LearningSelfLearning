@@ -15,6 +15,7 @@ import time
 gameSpeed = 1
 endScore = 15
 initPopulation = 120
+epochsNum = 200
 
 
 class GameObject:
@@ -554,9 +555,9 @@ def simple_selection(population, fitness, topology, color):
     killRate = 0.50 # percentage of the weakest to be killed
     ReproductionRate = 0.3 # Only the strongest one reproduce (referent to population that survived)
     mutationFactor = 0.005
-    multiFactorMin = -1.5
-    multiFactorMax = 1.5
-    crossOverFactor = 0.01
+    flipFactor = 0
+    multiFactorMin = 0.8
+    multiFactorMax = 1.2
     
     # Order population by fitness
     sortedIndexes = np.flip(np.argsort(fitness))
@@ -591,6 +592,9 @@ def simple_selection(population, fitness, topology, color):
             if np.random.random() <= mutationFactor:
                 # Generate multiplication factor 
                 scale = multiFactorMin + (np.random.random() * (multiFactorMax - multiFactorMin))
+                # Tiny chance to change the signal
+                if np.random.random() < flipFactor:
+                    scale *= -1
                 # Scale gene by random factor
                 child[gene] *= scale
                 # Mutate color (sligtly change color based on same scale that changed gene)
@@ -663,7 +667,7 @@ def main():
     # NEAT algorithm (I think) to train(find) best neuralnet to beat pong
     topology = [6, 5, 1]
     populationSize = initPopulation
-    epochs = 100
+    epochs = epochsNum
     
     population = []
     fitness = np.array([])
