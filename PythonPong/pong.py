@@ -12,6 +12,11 @@ import pickle
 import os
 import time
 
+gameSpeed = 2
+endScore = 1
+initPopulation = 60
+
+
 class GameObject:
     def __init__(self, window, position, visual=None, velocity=[0,0], batch=None):
         self.window     = window        # Pointer to a pyglet window object
@@ -260,9 +265,9 @@ class Ball(GameObject):
 class MatchHandler:
     def __init__(self, window, p1, p2, nn=None, color=(255,255,255,255)):
         self.window = window
-        self.playersSpeed = 180
-        self.ballSpeedModule = 400
-        self.endScore = 11
+        self.playersSpeed = 180*gameSpeed
+        self.ballSpeedModule = 400*gameSpeed
+        self.endScore = endScore
         
         self.victory = 0
         self.neuralNet = nn
@@ -609,8 +614,8 @@ def main():
     np.set_printoptions(10, linewidth = 92, sign=' ', floatmode='fixed')
     # NEAT algorithm (I think) to train(find) best neuralnet to beat pong
     topology = [6, 5, 1]
-    populationSize = 140
-    epochs = 400
+    populationSize = initPopulation
+    epochs = 100
     
     population = []
     fitness = np.array([])
