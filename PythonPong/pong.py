@@ -14,7 +14,7 @@ import time
 
 gameSpeed = 1
 endScore = 15
-initPopulation = 140
+initPopulation = 120
 
 
 class GameObject:
@@ -354,6 +354,7 @@ class GameWindow(pyglet.window.Window):
         self.frame_rate = 1/24
         self.fps_display = FPSDisplay(self)
         self.fps_display.label.font_size = 10
+        self.fps_display.label.x = 35
         self.playArea = [self.width, self.height-100]
         self.timeout = 0.5 # Time before closing window
         self.closeWindow = False # Flag to know when to close window
@@ -370,12 +371,18 @@ class GameWindow(pyglet.window.Window):
         self.interfaceObjects.append(GameObject(self,[0,400],upperBar,batch=self.interface))
         self.interfaceObjects.append(GameObject(self,[self.width//2 - 1, 0], midLine,batch=self.interface))        
         
+        # Color bar
+        self.colorBar = pyglet.graphics.Batch()
+        
         # Run games
         # List of type [winner, score p1, score p2, matcHandler]
         self.games = []
         self.neuralNet = False
         self.best = [-1,-1,-1,-1]
       
+        # For population visualization
+        self.colorVector = []
+
     def update(self,dt):
         # Check if there is any game running:
         self.closeWindow = all(g[0] != 0 for g in self.games)
@@ -403,6 +410,7 @@ class GameWindow(pyglet.window.Window):
         # Draw active games if exists
         if not self.closeWindow:
             self.interface.draw()
+            self.colorBar.draw()
             for game in self.games:
                 if game[0] == 0:
                     game[3].on_draw()
@@ -423,7 +431,7 @@ class GameWindow(pyglet.window.Window):
             label.draw()
         self.fps_display.draw()
     
-    def addGame(self, typeP1, typeP2, color=(255,255,255,255), nn=None):
+    def add_game(self, typeP1, typeP2, color=(255,255,255,255), nn=None):
         self.games.append([0, 0, 0, MatchHandler(self,
                                         str(typeP1),
                                         str(typeP2),
@@ -432,7 +440,40 @@ class GameWindow(pyglet.window.Window):
     
         if typeP2 == 'NeuralNet':
             self.neuralNet = True
+    
+    def upgrade_color_bar(self, colors):
+        # make mean color vector
+        colorMean = np.rint( np.mean(list(colors), axis=0)).astype(int)
+        colorMean = tuple(colorMean)
         
+        # Make best color
+        colorBest = tuple(colors[0])
+        
+        blockSize = 19
+        blockY = self.height-blockSize
+        self.colorBarRangeObjects = []
+        
+        self.bestBlock = GameObject(self,[          0, blockY], Image.new('RGBA', (blockSize,blockSize), colorBest), batch=self.colorBar)
+        self.meanBlock = GameObject(self,[blockSize+1, blockY], Image.new('RGBA', (blockSize,blockSize), colorMean), batch=self.colorBar)
+        
+        barOffset = blockSize*3+3
+        blockNum = int((self.playArea[0] - barOffset)/(blockSize+1))
+        if blockNum > len(colors):
+            blockNum = len(colors)-1
+            
+        colorsPerBlock = int(len(colors) / blockNum)
+        
+        
+        for i in range(blockNum):
+            block = colors[i*colorsPerBlock:i*colorsPerBlock + colorsPerBlock]
+            if colorsPerBlock > 1:
+                localMeanColor = np.rint( np.mean(list(block), axis=0)).astype(int)
+            else:
+                localMeanColor = colors[i]
+            localMeanColor = tuple(localMeanColor)
+            self.colorBarRangeObjects.append(GameObject(self,[barOffset+i*(blockSize+1), blockY], Image.new('RGBA', (blockSize, blockSize), localMeanColor), batch=self.colorBar))
+        
+     
     def results(self):
         results = []
         # separa22te games from results
@@ -554,7 +595,7 @@ def simple_selection(population, fitness, topology, color):
                 child[gene] *= scale
                 # Mutate color (sligtly change color based on same scale that changed gene)
                 cIdx = np.random.randint(0,3)
-                childColor[cIdx] += int(scale*20)
+                childColor[cIdx] += int(scale*50)
                 if(childColor[cIdx]) < 0:
                     childColor[cIdx] = 0
                 elif(childColor[cIdx] > 255):
@@ -569,7 +610,6 @@ def simple_selection(population, fitness, topology, color):
     # Evaluate population
     fitness = get_fitness(population, color=color)
     return population, fitness, color
-
 
 def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free any memory? the scope is closed
     # Uncomment for debugging loop purpuses
@@ -597,7 +637,8 @@ def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free
     # Populate game window
     for i in range(len(neuralnets)):
         # Add games to window
-        window.addGame('Auto', 'NeuralNet', nn=neuralnets[i], color=color[i])
+        window.add_game('Auto', 'NeuralNet', nn=neuralnets[i], color=color[i])
+    window.upgrade_color_bar(color)
     
     # run pyglet widow
     pyglet.clock.schedule_interval(window.update, float(window.frame_rate))
@@ -664,7 +705,7 @@ def main():
         print('Loading population memory')
         with open('dump_population', 'rb') as fp:
             popWeights = pickle.load(fp)
-        for i in range(len(popWeights)):
+        for i in range(populationSize):
             population[i].set_weights(popWeights[i])
 
 
