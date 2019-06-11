@@ -12,9 +12,9 @@ import pickle
 import os
 import time
 
-gameSpeed = 2
-endScore = 1
-initPopulation = 60
+gameSpeed = 1
+endScore = 15
+initPopulation = 140
 
 
 class GameObject:
@@ -197,7 +197,7 @@ class Ball(GameObject):
         self.angle = 45
         self.velocity = [0, 0]
         super().__init__(window, position, visual=visual, velocity=self.velocity, batch=batch)
-        self.startDelay = 0.5
+        self.startDelay = 0.05
         self.startCount = 0
         self.movingModule = self.module
         self.startPosition = [self.window.playArea[0]//2 - self.boundingBox[0]//2, self.window.height//2 - self.boundingBox[1]//2 - 50]
@@ -510,29 +510,21 @@ def diferential_selection(population, fitness, topology):
 
 def simple_selection(population, fitness, topology, color):
     populationSize = len(population)
-    killRate = 0.30 # percentage of the weakest to be killed
-    ReproductionRate = 0.15 # Only the strongest one reproduce
+    killRate = 0.50 # percentage of the weakest to be killed
+    ReproductionRate = 0.3 # Only the strongest one reproduce (referent to population that survived)
     mutationFactor = 0.005
-    multiFactorMin = -1.2
-    multiFactorMax = 1.2
-    intruderChance = 0.005
+    multiFactorMin = -1.5
+    multiFactorMax = 1.5
+    crossOverFactor = 0.01
     
     # Order population by fitness
     sortedIndexes = np.flip(np.argsort(fitness))
     population[:] = [population[i] for i in sortedIndexes]
     
     # Kill weakest individuals
-    population = population[:int(populationSize*killRate)]
+    population = population[:int(populationSize*(1-killRate))]
     fitness = fitness[:int(populationSize*(1-killRate))]
     color = color[:int(populationSize*(1-killRate))]
-    
-    # Add random individual (for new genes in gene pool)
-    # Inserted at the top of the list to make sure it reproduces at least one
-    # This helps getting out of local minimums
-    if np.random.random() <= intruderChance:
-        population.insert(0, NeuralNet(topology))
-        color.insert(0, [np.random.randint(0,255), np.random.randint(0,255), np.random.randint(0,255), 150])
-    
     # Breed
     livePopSize = len(population)
     while(len(population) < populationSize):
@@ -541,11 +533,15 @@ def simple_selection(population, fitness, topology, color):
         
         p1 = population[idx[0]].get_weights()
         p2 = population[idx[1]].get_weights()
+        child = []
         
         # Crossover
-        crossOverPoint = np.random.randint(0,len(p1)-1) # select crossover point
-        child = np.concatenate((p1[:crossOverPoint], p2[crossOverPoint:]))
-        
+        for gene in range(len(p1)):
+            if np.random.random() < crossOverFactor:
+                child.append(p2[gene])
+            else:
+                child.append(p1[gene])
+
         # Merge parents colors
         childColor = [int(hue[0]*(1 - crossOverFactor) + hue[1]*crossOverFactor) for hue in zip(*[color[idx[0]], color[idx[1]]])]
         
@@ -558,7 +554,7 @@ def simple_selection(population, fitness, topology, color):
                 child[gene] *= scale
                 # Mutate color (sligtly change color based on same scale that changed gene)
                 cIdx = np.random.randint(0,3)
-                childColor[cIdx] += scale*childColor[cIdx]/2
+                childColor[cIdx] += int(scale*20)
                 if(childColor[cIdx]) < 0:
                     childColor[cIdx] = 0
                 elif(childColor[cIdx] > 255):
@@ -577,9 +573,18 @@ def simple_selection(population, fitness, topology, color):
 
 def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free any memory? the scope is closed
     # Uncomment for debugging loop purpuses
-    # return np.array([abs(sum(n.get_weights())) for n in neuralnets])
-    # return np.random.randint(-11,11,len(neuralnets))
-    
+    # optimizate ouput = 1 no matter input
+    # op = []
+    # for n in neuralnets:
+    #     op.append(n.forward_propagation([[np.random.random(),
+    #                                       np.random.random(),
+    #                                       np.random.random(),
+    #                                       np.random.random(),
+    #                                       np.random.random(),
+    #                                       np.random.random()]]))
+    #     op[-1] = np.sqrt(1 - op[-1][0][0] ** 2)
+    # return op
+
     # Generate color randomly if not specified
     if color is None:
         color = []
