@@ -14,7 +14,7 @@ import time
 import argparse
 
 # NN mediu performace seems to tend to 0 higher speeds(), game logic is less reliable
-gameSpeed = 1.2
+gameSpeed = 1
 endScore = 11
 initPopulation = 100
 epochsNum = 200
@@ -267,8 +267,8 @@ class Ball(GameObject):
 class MatchHandler:
     def __init__(self, window, p1, p2, nn=None, color=(255,255,255,255)):
         self.window = window
-        self.playersSpeed = 180*gameSpeed
-        self.ballSpeedModule = 400*gameSpeed
+        self.playersSpeed = 150*gameSpeed
+        self.ballSpeedModule = 300*gameSpeed
         self.endScore = endScore
         
         self.victory = 0
@@ -718,6 +718,7 @@ def main(args):
         for i in range(populationSize):
             population[i].set_weights(popWeights[i])
 
+    ########################################## PLAY ##########################################
     if args.mode == 'play':
         print('Starting game...')
         # Create game window
@@ -728,11 +729,13 @@ def main(args):
         pyglet.clock.schedule_interval(window.update, float(window.frame_rate))
         pyglet.app.run()
         
+    ######################################## VALIDATE ########################################
     elif args.mode == 'validate':
         print('Validating model')
-        fitness = get_fitness([population[50]]*100, ': Initializing population', color=[colorVec[50]]*100)
+        fitness = get_fitness([population[0]]*100, ': Initializing population', color=[colorVec[0]]*100)
         print('Results:', [max(fitness), sum(fitness)/len(fitness), min(fitness)])
-        
+    
+    ######################################## TRAINING ########################################
     elif args.mode == 'train':
         print('Initializing fitness')
         # Get fitness vector for first generation
