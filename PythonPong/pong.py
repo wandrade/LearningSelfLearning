@@ -234,7 +234,7 @@ class Ball(GameObject):
                 self.position = list(self.startPosition)
         
             # When hit player, deflect and change velocity direction depending on where it hit the plate
-            N = 40
+            N = 65
             if self.rectangle_collision(p1):
                 # deflect from -plate height and plate height to -N and N
                 D = self.distanceVec(p1)[1]
@@ -485,15 +485,56 @@ class GameWindow(pyglet.window.Window):
 
 def plot(ax, development):
     plt.cla()
-    ax.plot(list(zip(*development))[0], color='green')
-    ax.plot(list(zip(*development))[1], color='yellow')
-    ax.plot(list(zip(*development))[2], color='red')
+    ax.plot(list(zip(*development))[0], color=(0.0, 1.0, 0.0), label='Best result')
+    ax.plot(list(zip(*development))[1], color=(0.5, 1.0, 0.8), label='Best mean')
+    ax.plot(list(zip(*development))[2], color=(1.0, 1.0, 0.3), label='Mean')
+    ax.plot(list(zip(*development))[3], color=(1.0, 0.6, 0.0), label='Worst mean')
+    ax.plot(list(zip(*development))[4], color=(1.0, 0.0, 0.0), label='Worst result')
     ax.grid()
+    ax.legend()
     ax.set_title('Fitness over time')
     ax.set_ylabel('Fitness')
     ax.set_xlabel('Epochs')
     plt.draw()
     plt.pause(0.001)
+
+def nAverageMax(list1, N):
+    a = list(list1) 
+    final_list = [] 
+    for i in range(0, N):  
+        max1 = -endScore
+        
+        for j in range(len(list1)):      
+            if list1[j] > max1: 
+                max1 = list1[j]; 
+                  
+        list1.remove(max1); 
+        final_list.append(max1) 
+          
+    return(sum(final_list)/N)
+   
+def nAverageMin(list1, N): 
+    final_list = [] 
+    for i in range(0, N):  
+        min1 = endScore
+        
+        for j in range(len(list1)):      
+            if list1[j] < min1: 
+                min1 = list1[j]; 
+                  
+        list1.remove(min1); 
+        final_list.append(min1) 
+    
+    return(sum(final_list)/N)
+
+def get_statistics(fitness):
+    N = int(0.20*initPopulation)
+    
+    return [max(fitness), 
+            nAverageMax(list(fitness), N), 
+            sum(fitness)/len(fitness), 
+            nAverageMin(list(fitness), N), 
+            min(fitness)]
 
 def diferential_selection(population, fitness, topology):
     populationSize = len(population)
@@ -616,9 +657,7 @@ def simple_selection(population, fitness, topology, color):
     
     # Evaluate population
     fitness = get_fitness(population, color=color)
-    for p in population:
-        print(p.get_weights())
-    print(100*' #')
+    
     return population, fitness, color
 
 def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free any memory? the scope is closed
@@ -666,6 +705,7 @@ def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free
     for result in results:
         # Change here for different fitness evaluations
         fitness.append(result[2] - result[1]) # value who makes most points and take less hits
+    
     return np.array(fitness)
 
 def main(args):
@@ -740,7 +780,7 @@ def main(args):
         print('Initializing fitness')
         # Get fitness vector for first generation
         fitness = get_fitness(population, ': Initializing population', color=colorVec)
-        development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
+        development.append(get_statistics(fitness))
         
         # Plot development
         plot(ax, development)
@@ -760,7 +800,7 @@ def main(args):
             population, fitness, colorVec = simple_selection(population, fitness, topology, colorVec)
 
             # Record of fitness over time
-            development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
+            development.append(get_statistics(fitness))
             
             # Plot development
             plot(ax, development)
@@ -789,7 +829,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('mode', metavar='Mode', type=str, default='validate',
+    parser.add_argument('mode', metavar='Mode', type=str, default='train',
                     help='Run mode: play, validate or train', nargs='?')
     
     args = parser.parse_args()
