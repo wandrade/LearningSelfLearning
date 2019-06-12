@@ -11,13 +11,14 @@ import matplotlib.pyplot as plt
 import pickle
 import os
 import time
+import argparse
 
-gameSpeed = 1
-endScore = 15
-initPopulation = 120
+# NN mediu performace seems to tend to 0 higher speeds(), game logic is less reliable
+gameSpeed = 1.2
+endScore = 11
+initPopulation = 100
 epochsNum = 200
-
-
+nnTopology = [6, 5, 1]
 class GameObject:
     def __init__(self, window, position, visual=None, velocity=[0,0], batch=None):
         self.window     = window        # Pointer to a pyglet window object
@@ -198,7 +199,7 @@ class Ball(GameObject):
         self.angle = 45
         self.velocity = [0, 0]
         super().__init__(window, position, visual=visual, velocity=self.velocity, batch=batch)
-        self.startDelay = 0.05
+        self.startDelay = 1/gameSpeed
         self.startCount = 0
         self.movingModule = self.module
         self.startPosition = [self.window.playArea[0]//2 - self.boundingBox[0]//2, self.window.height//2 - self.boundingBox[1]//2 - 50]
@@ -233,7 +234,7 @@ class Ball(GameObject):
                 self.position = list(self.startPosition)
         
             # When hit player, deflect and change velocity direction depending on where it hit the plate
-            N = 50
+            N = 40
             if self.rectangle_collision(p1):
                 # deflect from -plate height and plate height to -N and N
                 D = self.distanceVec(p1)[1]
@@ -553,9 +554,11 @@ def diferential_selection(population, fitness, topology):
 def simple_selection(population, fitness, topology, color):
     populationSize = len(population)
     killRate = 0.50 # percentage of the weakest to be killed
-    ReproductionRate = 0.3 # Only the strongest one reproduce (referent to population that survived)
-    mutationFactor = 0.005
-    flipFactor = 0
+    ReproductionRate = 0.20 # Only the strongest one reproduce (referent to population that survived)
+    mutationFactor = 0.02
+    crossOverFactor = 0.02
+    
+    flipFactor = 0.20
     multiFactorMin = 0.8
     multiFactorMax = 1.2
     
@@ -613,6 +616,9 @@ def simple_selection(population, fitness, topology, color):
     
     # Evaluate population
     fitness = get_fitness(population, color=color)
+    for p in population:
+        print(p.get_weights())
+    print(100*' #')
     return population, fitness, color
 
 def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free any memory? the scope is closed
@@ -662,10 +668,10 @@ def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free
         fitness.append(result[2] - result[1]) # value who makes most points and take less hits
     return np.array(fitness)
 
-def main():
+def main(args):
     np.set_printoptions(10, linewidth = 92, sign=' ', floatmode='fixed')
     # NEAT algorithm (I think) to train(find) best neuralnet to beat pong
-    topology = [6, 5, 1]
+    topology = nnTopology
     populationSize = initPopulation
     epochs = epochsNum
     
@@ -712,55 +718,77 @@ def main():
         for i in range(populationSize):
             population[i].set_weights(popWeights[i])
 
-
-    # Get fitness vector for first generation
-    fitness = get_fitness(population, ': Initializing population', color=colorVec)
-    development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
-    
-    # Plot development
-    plot(ax, development)
-    tVec.append(time.time()-t0)
-    print('Population initialized in %.1f seconds' % tVec[-1])
-    print('Training started:')
-    # start genetic loop (diferential genetic algoritm)
-    for epoch in range(epochs):
-        t0 = time.time()
-        ETAs = sum(tVec)/len(tVec)*(epochs-epoch)
-        ETAm = int(ETAs/60.0)
-        ETAs = ETAs - 60*ETAm
-        print('Epoch %i/%i: ETA %im %is'% (epoch+1, epochs, ETAm, ETAs))
+    if args.mode == 'play':
+        print('Starting game...')
+        # Create game window
+        window = GameWindow(500, 500, 'SmartPong')
+        window.add_game('Manual', 'NeuralNet', nn=population[0], color=colorVec[0])
         
-        # Genetic algoritm
-        # population, fitness = diferential_selection(population, fitness, topology)
-        population, fitness, colorVec = simple_selection(population, fitness, topology, colorVec)
-
-        # Record of fitness over time
+        # run pyglet widow
+        pyglet.clock.schedule_interval(window.update, float(window.frame_rate))
+        pyglet.app.run()
+        
+    elif args.mode == 'validate':
+        print('Validating model')
+        fitness = get_fitness([population[50]]*100, ': Initializing population', color=[colorVec[50]]*100)
+        print('Results:', [max(fitness), sum(fitness)/len(fitness), min(fitness)])
+        
+    elif args.mode == 'train':
+        print('Initializing fitness')
+        # Get fitness vector for first generation
+        fitness = get_fitness(population, ': Initializing population', color=colorVec)
         development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
         
         # Plot development
         plot(ax, development)
-        
-        # Save current results so program can continue from where it started
-        with open('dump_history', 'wb') as fp:
-            pickle.dump(development, fp)
-        with open('dump_population', 'wb') as fp:
-            pickle.dump([weight.get_weights() for weight in population], fp)
-        with open('dump_color', 'wb') as fp:
-            pickle.dump(colorVec, fp)
-        
-        # Print statistics
         tVec.append(time.time()-t0)
-        print('Elapsed time: %is' % tVec[-1])
-        bestIndex = 0
-        for i in range(populationSize):
-            if fitness[i] >= fitness[bestIndex]:
-                bestIndex = i
-        print('Best player fitness: ', fitness[bestIndex])
-        print(population[bestIndex].get_weights())
-        print('~ '*46)
-        
-    print('Training done')
-    plt.show()
+        print('Population initialized in %.1f seconds' % tVec[-1])
+        print('Training started:')
+        # start genetic loop (diferential genetic algoritm)
+        for epoch in range(epochs):
+            t0 = time.time()
+            ETAs = sum(tVec)/len(tVec)*(epochs-epoch)
+            ETAm = int(ETAs/60.0)
+            ETAs = ETAs - 60*ETAm
+            print('Epoch %i/%i: ETA %im %is'% (epoch+1, epochs, ETAm, ETAs))
+            
+            # Genetic algoritm
+            # population, fitness = diferential_selection(population, fitness, topology)
+            population, fitness, colorVec = simple_selection(population, fitness, topology, colorVec)
+
+            # Record of fitness over time
+            development.append([max(fitness), sum(fitness)/len(fitness), min(fitness)])
+            
+            # Plot development
+            plot(ax, development)
+            
+            # Save current results so program can continue from where it started
+            with open('dump_history', 'wb') as fp:
+                pickle.dump(development, fp)
+            with open('dump_population', 'wb') as fp:
+                pickle.dump([weight.get_weights() for weight in population], fp)
+            with open('dump_color', 'wb') as fp:
+                pickle.dump(colorVec, fp)
+            
+            # Print statistics
+            tVec.append(time.time()-t0)
+            print('Elapsed time: %is' % tVec[-1])
+            bestIndex = 0
+            for i in range(populationSize):
+                if fitness[i] >= fitness[bestIndex]:
+                    bestIndex = i
+            print('Best player fitness: ', fitness[bestIndex])
+            print(population[bestIndex].get_weights())
+            print('~ '*46)
+            
+        print('Training done')
+        plt.show()
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('mode', metavar='Mode', type=str, default='validate',
+                    help='Run mode: play, validate or train', nargs='?')
+    
+    args = parser.parse_args()
+    
+    main(args)
