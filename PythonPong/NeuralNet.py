@@ -11,7 +11,7 @@ def mapFromTo(x,a,b,c,d):
    return y
 
 class NeuralNet(object):
-    def __init__(self, topology=[], seed=None):
+    def __init__(self, topology=[], seed=None, weights=None):
         if seed is not None:
             np.random.seed(seed)
         
@@ -32,6 +32,8 @@ class NeuralNet(object):
                     1+topology[i], topology[i+1]
                 ))
         self.image = False
+        if weights is not None:
+            self.set_weights(weights)
     
     def forward_propagation(self, x):
         stage = x
@@ -205,39 +207,25 @@ class NeuralNet(object):
     def get_weights(self):
         # Unfold weights to a single vector and return them
         wVec = []
-        for w in self.W:
-            for node in w:
+        for layer in self.W:
+            for node in layer:
                 for weight in node:
                     wVec.append(weight)
         return np.array(wVec)
     
     def set_weights(self, wVec):
-        for i in range(len(self.W)):
-            for j in range(self.W[i].shape[0]):
-                for k in range(self.W[i][j].shape[0]):
-                    self.W[i][j][k], wVec =  wVec[-1], wVec[:-1]
+        for layer in range(len(self.W)):
+            for node in range(len(self.W[layer])):
+                for weight in range(len(self.W[layer][node])):
+                    self.W[layer][node][weight], wVec =  wVec[0], wVec[1:]
 
 if __name__ == "__main__":
     # Based on:
     # https://enlight.nyc/projects/neural-network/
-    # X = (hours studying, hours sleeping), y = score on test
-    xAll = np.array(([2, 9], [1, 5], [3, 6], [5, 10]), dtype=float) # input data
-    y = np.array(([92], [86], [89]), dtype=float) # output
 
-    # scale units
-    xAll = xAll/np.amax(xAll, axis=0) # scaling input data
-    y = y/100 # scaling output data (max test score is 100)
-
-    # split data
-    X = np.split(xAll, [3])[0] # training data
-    xPredicted = np.split(xAll, [3])[1] # testing data
-    
-    # print(X)
-    # print(y)
-    
-    NN = NeuralNet([2, 3, 1], 5541)
+    NN = NeuralNet([2, 3, 2], 5541)
+    NN2 = NeuralNet([2, 3, 2], weights=NN.get_weights())
+    print(NN.forward_propagation([[5,5]]), NN2.forward_propagation([[5,5]]))
     NN.draw_diagram(inputLabels=['Study', 'Sleep'], outputLabels=['Score'])
     NN.save_image()
     
-    o = NN.forward_propagation(X)
-    print(o)
