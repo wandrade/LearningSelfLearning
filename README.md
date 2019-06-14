@@ -33,6 +33,10 @@ Every epoch will have all player simultaneously playing in the same window, and 
 
 ![](PythonPong/Results/random.gif)
 
+On the right side of the screen, you can see the active neuralnet that made more points.
+On top of the game window, there are some colourful blocks. the first one is the colour of the best player from last round, the second, the mean of the colours of all players, and the other ones are the partial means of all the players (first one are mean of some of the best, and last one is the mean of some of the worst players). This should be useful to see convergence but since I could not make it converge in the time I allotted for this project, I can't say for sure if its useful.
+
+
 For me, after a lot of time I got this:
 ![](PythonPong/Results/trained.gif)
 ![](PythonPong/Results/SmartPongGraph.png)
