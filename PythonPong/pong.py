@@ -16,9 +16,10 @@ import argparse
 # NN mediu performace seems to tend to 0 higher speeds(), game logic is less reliable
 gameSpeed = 1
 endScore = 11
-initPopulation = 100
+initPopulation = 120
 epochsNum = 200
-nnTopology = [6, 5, 1]
+nnTopology = [6, 5, 4, 1]
+
 class GameObject:
     def __init__(self, window, position, visual=None, velocity=[0,0], batch=None):
         self.window     = window        # Pointer to a pyglet window object
@@ -498,42 +499,13 @@ def plot(ax, development):
     plt.draw()
     plt.pause(0.001)
 
-def nAverageMax(list1, N):
-    a = list(list1) 
-    final_list = [] 
-    for i in range(0, N):  
-        max1 = -endScore
-        
-        for j in range(len(list1)):      
-            if list1[j] > max1: 
-                max1 = list1[j]; 
-                  
-        list1.remove(max1); 
-        final_list.append(max1) 
-          
-    return(sum(final_list)/N)
-   
-def nAverageMin(list1, N): 
-    final_list = [] 
-    for i in range(0, N):  
-        min1 = endScore
-        
-        for j in range(len(list1)):      
-            if list1[j] < min1: 
-                min1 = list1[j]; 
-                  
-        list1.remove(min1); 
-        final_list.append(min1) 
-    
-    return(sum(final_list)/N)
-
 def get_statistics(fitness):
-    N = int(0.20*initPopulation)
+    N = int(0.15*initPopulation)
     
     return [max(fitness), 
-            nAverageMax(list(fitness), N), 
+            sum(fitness[:N])/len(fitness[:N]), 
             sum(fitness)/len(fitness), 
-            nAverageMin(list(fitness), N), 
+            sum(fitness[N:])/len(fitness[N:]), 
             min(fitness)]
 
 def diferential_selection(population, fitness, topology):
@@ -594,18 +566,14 @@ def diferential_selection(population, fitness, topology):
 
 def simple_selection(population, fitness, topology, color):
     populationSize = len(population)
-    killRate = 0.50 # percentage of the weakest to be killed
-    ReproductionRate = 0.20 # Only the strongest one reproduce (referent to population that survived)
-    mutationFactor = 0.02
-    crossOverFactor = 0.02
+    killRate = 0.40 # percentage of the weakest to be killed
+    ReproductionRate = 0.50 # Only the strongest one reproduce (referent to population that survived)
+    mutationFactor = 0.08
+    crossOverFactor = 0.04
     
-    flipFactor = 0.20
-    multiFactorMin = 0.8
-    multiFactorMax = 1.2
-    
-    # Order population by fitness
-    sortedIndexes = np.flip(np.argsort(fitness))
-    population[:] = [population[i] for i in sortedIndexes]
+    flipFactor = 0.40
+    multiFactorMin = 0.3
+    multiFactorMax = 1.6
     
     # Kill weakest individuals
     population = population[:int(populationSize*(1-killRate))]
@@ -705,6 +673,14 @@ def get_fitness(neuralnets, titlePostfix = '', color=None): # why doesnt it free
     for result in results:
         # Change here for different fitness evaluations
         fitness.append(result[2] - result[1]) # value who makes most points and take less hits
+    
+    
+    # Order neuralnets by fitness
+    sortedIndexes = np.flip(np.argsort(list(fitness)))
+    neuralnets[:] = [neuralnets[i] for i in sortedIndexes]
+    color[:] = [color[i] for i in sortedIndexes]
+    fitness[:] = [fitness[i] for i in sortedIndexes]
+    
     
     return np.array(fitness)
 
@@ -826,7 +802,11 @@ def main(args):
             
         print('Training done')
         plt.show()
-
+    ######################################## TRAINING ########################################
+    elif args.mode == 'plot':
+        plot(ax, development)
+        plt.show()
+        
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('mode', metavar='Mode', type=str, default='train',
