@@ -1,4 +1,3 @@
-    NEAT
     tensorflow
     keras
     cython
@@ -10,3 +9,5 @@ learned:
     Arcade
     pygames
     build simple game
+    NEAT
+
